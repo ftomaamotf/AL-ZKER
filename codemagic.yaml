@@ -1,0 +1,28 @@
+workflows:
+  build-ios-app:
+    name: Build AL-ZKER iOS App
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    scripts:
+      - name: Generate Xcode Project using XcodeGen
+        script: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Build unsigned iOS App for Sideloadly
+        script: |
+          xcodebuild build \
+            -project AL-ZKER.xcodeproj \
+            -scheme AL-ZKER \
+            -sdk iphoneos \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Package .app into .ipa file
+        script: |
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "AL-ZKER.app" | head -n 1)
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r AL-ZKER.ipa Payload
+    artifacts:
+      - AL-ZKER.ipa
