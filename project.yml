@@ -1,0 +1,17 @@
+name: AL-ZKER
+options:
+  bundleIdPrefix: com.ftomaamotf
+targets:
+  AL-ZKER:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: .
+        includes:
+          - "*.swift"
+    settings:
+      base:
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_CFBundleDisplayName: "AL-ZKER"
