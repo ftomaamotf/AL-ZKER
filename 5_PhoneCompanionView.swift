@@ -52,105 +52,68 @@ public struct PhoneCompanionView: View {
                 
                 Text("الهدف المحدد: \(sync.target)")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.gray)
                 
-                HStack(spacing: 16) {
-                    Button {
-                        let next = sync.currentCount + 1
-                        sync.sendSyncPayload(count: next, zekr: sync.currentZekr, target: sync.target)
-                    } label: {
-                        Text("+ إضافة تسبيحة")
-                            .font(.headline)
-                            .foregroundColor(.black)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.green)
-                            .cornerRadius(16)
+                HStack(spacing: 30) {
+                    Button(action: {
+                        if sync.currentCount > 0 {
+                            sync.sendSyncPayload(count: sync.currentCount - 1, zekr: sync.currentZekr, target: sync.target)
+                        }
+                    }) {
+                        Image(systemName: "minus.circle.fill")
+                            .font(.system(size: 44))
+                            .foregroundColor(.red)
                     }
                     
-                    Button {
-                        sync.sendSyncPayload(count: 0, zekr: sync.currentZekr, target: sync.target)
-                    } label: {
-                        Text("تصفير")
-                            .font(.headline)
-                            .foregroundColor(.red)
-                            .padding()
-                            .background(Color.red.opacity(0.15))
-                            .cornerRadius(16)
+                    Button(action: {
+                        sync.sendSyncPayload(count: sync.currentCount + 1, zekr: sync.currentZekr, target: sync.target)
+                    }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 64))
+                            .foregroundColor(.green)
                     }
                 }
-                .padding(.horizontal)
                 
                 Spacer()
             }
-            .navigationTitle("فاذكروني")
+            .navigationTitle("تطبيق الذكر")
         }
     }
     
-    // MARK: - Azkar & Targets Tab
-    private var azkarTabView: View {
+    // MARK: - Azkar Tab
+    private var azkarTabView: some View {
         NavigationStack {
             List {
-                Section("اختر الذكر الحالي") {
-                    ForEach(ZekrItem.builtInAzkar) { zekr in
+                Section(header: Text("الأذكار المدمجة")) {
+                    ForEach(ZekrItem.builtInAzkar) { item in
                         HStack {
-                            Text(zekr.title)
-                                .fontWeight(.medium)
+                            Text(item.title)
                             Spacer()
-                            if zekr.title == sync.currentZekr {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.green)
-                            }
+                            Text("\(item.defaultTarget)")
+                                .foregroundColor(.gray)
                         }
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            sync.sendSyncPayload(count: 0, zekr: zekr.title, target: zekr.defaultTarget)
-                        }
-                    }
-                }
-                
-                Section("أهداف التسبيح") {
-                    let targets = [33, 34, 66, 99, 100, 300, 500, 1000]
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(targets, id: \.self) { num in
-                                Button {
-                                    sync.sendSyncPayload(count: sync.currentCount, zekr: sync.currentZekr, target: num)
-                                } label: {
-                                    Text("\(num)")
-                                        .fontWeight(.bold)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 8)
-                                        .background(sync.target == num ? Color.green : Color.gray.opacity(0.2))
-                                        .foregroundColor(sync.target == num ? .black : .primary)
-                                        .cornerRadius(12)
-                                }
-                            }
+                            sync.sendSyncPayload(count: 0, zekr: item.title, target: item.defaultTarget)
                         }
                     }
                 }
             }
-            .navigationTitle("الأذكار والأهداف")
+            .navigationTitle("الأذكار")
         }
     }
     
     // MARK: - Settings Tab
-    private var settingsTabView: View {
+    private var settingsTabView: some View {
         NavigationStack {
             Form {
-                Section("المزامنة والحفظ") {
+                Section(header: Text("حول التطبيق")) {
                     HStack {
-                        Text("حالة الاتصال بـ Apple Watch")
+                        Text("الإصدار")
                         Spacer()
-                        Text("متصل عبر WatchConnectivity 🟢")
-                            .foregroundColor(.green)
-                            .font(.caption)
+                        Text("1.0.0")
+                            .foregroundColor(.gray)
                     }
-                }
-                
-                Section("الاهتزاز والتنبيهات") {
-                    Toggle("تشغيل الاهتزاز (Haptics)", isOn: .constant(true))
-                    Toggle("التذكير الذكي بعد التوقف", isOn: .constant(true))
                 }
             }
             .navigationTitle("الإعدادات")
