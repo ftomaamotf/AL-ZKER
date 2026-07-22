@@ -12,6 +12,5 @@ targets:
           - "*.swift"
     settings:
       base:
-        INFOPLIST_KEY_UILaunchScreen_Generation: true
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_CFBundleDisplayName: "AL-ZKER"
+        PRODUCT_BUNDLE_IDENTIFIER: com.ftomaamotf.alzker
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
