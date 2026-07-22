@@ -15,14 +15,10 @@ workflows:
             -scheme AL-ZKER \
             -sdk iphoneos \
             -configuration Debug \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
-      - name: Package .app into .ipa file
-        script: |
-          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "AL-ZKER.app" | head -n 1)
-          mkdir -p Payload
-          cp -r "$APP_PATH" Payload/
-          zip -r AL-ZKER.ipa Payload
+            CODE_SIGN_IDENTITY=""
     artifacts:
-      - AL-ZKER.ipa
+      - build/ios/iphoneos/*.app
+      - build/ios/iphoneos/*.ipa
+      - "*.xcarchive"
