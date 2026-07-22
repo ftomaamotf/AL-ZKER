@@ -37,7 +37,7 @@ public struct PhoneCompanionView: View {
     }
     
     // MARK: - Counter Tab
-    private var counterTabView: View {
+    private var counterTabView: some View {
         NavigationStack {
             VStack(spacing: 24) {
                 Spacer()
