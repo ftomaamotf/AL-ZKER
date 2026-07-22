@@ -32,53 +32,26 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         self.currentZekr = zekr
         self.target = target
         
-        guard WCSession.default.activationState == .activated else { return }
-        
+        guard WCSession.default.isReachable else { return }
         let payload: [String: Any] = [
             "count": count,
             "zekr": zekr,
             "target": target
         ]
-        
-        // Update Application Context for persistent state
-        try? WCSession.default.updateApplicationContext(payload)
-        
-        // Send instantaneous interactive message if reachable
-        if WCSession.default.isReachable {
-            WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
-        }
+        WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
     }
     
-    // MARK: - WCSessionDelegate Handlers
-    
+    // MARK: - WCSessionDelegate
     public func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {}
-    
-    #if os(iOS)
     public func sessionDidBecomeInactive(_ session: WCSession) {}
     public func sessionDidDeactivate(_ session: WCSession) {
         WCSession.default.activate()
     }
-    #endif
-    
-    public func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
-        updateFromPayload(applicationContext)
-    }
-    
     public func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
-        updateFromPayload(message)
-    }
-    
-    private func updateFromPayload(_ payload: [String: Any]) {
         DispatchQueue.main.async {
-            if let count = payload["count"] as? Int {
-                self.currentCount = count
-            }
-            if let zekr = payload["zekr"] as? String {
-                self.currentZekr = zekr
-            }
-            if let target = payload["target"] as? Int {
-                self.target = target
-            }
+            if let count = message["count"] as? Int { self.currentCount = count }
+            if let zekr = message["zekr"] as? String { self.currentZekr = zekr }
+            if let target = message["target"] as? Int { self.target = target }
         }
     }
 }
