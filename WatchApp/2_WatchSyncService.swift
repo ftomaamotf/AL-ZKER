@@ -93,6 +93,26 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         sendSyncPayload(count: 0, zekr: item.title, target: item.defaultTarget)
     }
     
+    public func selectNextZekr() {
+        guard !azkarList.isEmpty else { return }
+        if let idx = azkarList.firstIndex(where: { $0.title == currentZekr }) {
+            let nextIdx = (idx + 1) % azkarList.count
+            selectZekr(azkarList[nextIdx])
+        } else {
+            selectZekr(azkarList[0])
+        }
+    }
+    
+    public func selectPreviousZekr() {
+        guard !azkarList.isEmpty else { return }
+        if let idx = azkarList.firstIndex(where: { $0.title == currentZekr }) {
+            let prevIdx = (idx - 1 + azkarList.count) % azkarList.count
+            selectZekr(azkarList[prevIdx])
+        } else {
+            selectZekr(azkarList[0])
+        }
+    }
+    
     private func syncAzkarListToPeer() {
         guard WCSession.isSupported() else { return }
         guard let data = try? JSONEncoder().encode(azkarList) else { return }
@@ -127,12 +147,18 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         let payload: [String: Any] = [
             "count": count,
             "zekr": zekr,
-            "target": target
+            "target": target,
+            "timestamp": Date().timeIntervalSince1970
         ]
         if WCSession.default.isReachable {
             WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
         }
         try? WCSession.default.updateApplicationContext(payload)
+        
+        // إرسال فوري يوقظ الآيفون في الخلفية ويطلق الصوت عند الوصول للهدف حتى ولو كانت شاشة الآيفون مقفلة!
+        if count == target || count == 0 {
+            WCSession.default.transferUserInfo(payload)
+        }
     }
     
     // MARK: - WCSessionDelegate
@@ -151,6 +177,11 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     
     public func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
         handleIncomingPayload(message)
+    }
+    
+    // استقبال البيانات عند إيقاظ التطبيق بالخلفية
+    public func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
+        handleIncomingPayload(userInfo)
     }
     
     public func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {

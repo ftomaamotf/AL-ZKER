@@ -93,6 +93,26 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         sendSyncPayload(count: 0, zekr: item.title, target: item.defaultTarget)
     }
     
+    public func selectNextZekr() {
+        guard !azkarList.isEmpty else { return }
+        if let idx = azkarList.firstIndex(where: { $0.title == currentZekr }) {
+            let nextIdx = (idx + 1) % azkarList.count
+            selectZekr(azkarList[nextIdx])
+        } else {
+            selectZekr(azkarList[0])
+        }
+    }
+    
+    public func selectPreviousZekr() {
+        guard !azkarList.isEmpty else { return }
+        if let idx = azkarList.firstIndex(where: { $0.title == currentZekr }) {
+            let prevIdx = (idx - 1 + azkarList.count) % azkarList.count
+            selectZekr(azkarList[prevIdx])
+        } else {
+            selectZekr(azkarList[0])
+        }
+    }
+    
     private func syncAzkarListToPeer() {
         guard WCSession.isSupported() else { return }
         guard let data = try? JSONEncoder().encode(azkarList) else { return }
@@ -117,22 +137,45 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         session.activate()
     }
     
+    // MARK: - فحص وإطلاق تنبيه اكتمال الهدف في الآيفون (حتى أثناء قفل الشاشة)
+    private var lastAlertedTargetCount: Int? = nil
+    
+    public func checkAndTriggerTargetAlert(count: Int) {
+        if count < target || count == 0 {
+            lastAlertedTargetCount = nil
+        } else if count == target && lastAlertedTargetCount != count {
+            lastAlertedTargetCount = count
+            // 1. تشغيل الصوت عالي النقاء عبر مكبر الصوت (يتخطى زر الصامت وقفل الشاشة بفضل Background Audio)
+            SoundManager.shared.playFromStorage()
+            // 2. إرسال إشعار فوري يضيء شاشة القفل ويعرض التهنئة بصوت وتنبيه
+            NotificationManager.shared.triggerTargetNotification(zekr: currentZekr, count: count)
+        }
+    }
+    
     /// Synchronize state changes to paired watch or phone
     public func sendSyncPayload(count: Int, zekr: String, target: Int) {
         self.currentCount = count
         self.currentZekr = zekr
         self.target = target
         
+        checkAndTriggerTargetAlert(count: count)
+        
         guard WCSession.isSupported() else { return }
         let payload: [String: Any] = [
             "count": count,
             "zekr": zekr,
-            "target": target
+            "target": target,
+            "timestamp": Date().timeIntervalSince1970
         ]
         if WCSession.default.isReachable {
             WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
         }
         try? WCSession.default.updateApplicationContext(payload)
+        
+        // إرسال فوري بالخلفية لإيقاظ الجهاز المقترن
+        if count == target || count == 0 {
+            WCSession.default.transferUserInfo(payload)
+        }
     }
     
     // MARK: - WCSessionDelegate
@@ -149,8 +192,14 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     }
     #endif
     
+    // استقبال الرسائل التفاعلية الفورية
     public func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
         handleIncomingPayload(message)
+    }
+    
+    // استقبال البيانات عند إيقاظ الآيفون في الخلفية والشاشة مقفلة
+    public func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
+        handleIncomingPayload(userInfo)
     }
     
     public func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
@@ -170,6 +219,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
                 self.azkarList = decoded
                 self.saveAzkarLocally()
             }
+            
+            // فحص إكمال الهدف وإطلاق التنبيه الصوتي فوراً حتى لو كان الآيفون مقفلاً
+            self.checkAndTriggerTargetAlert(count: self.currentCount)
         }
     }
 }
