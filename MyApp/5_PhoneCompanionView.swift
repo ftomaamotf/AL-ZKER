@@ -295,10 +295,17 @@ public struct PhoneCompanionView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             
-            // شريط التبويبات السفلي المخصص (زر العداد، زر الأذكار والأهداف، زر إعدادات الساعة)
-            // مع ميزة تعطيل وقفل زري الأذكار والإعدادات بالكامل عند تفعيل القفل
-            customBottomTabBar
+            // شريط التبويبات السفلي المخصص (يختفي بالكامل عند تفعيل القفل لتصبح الشاشة بيضاء ونقية للتسبيح)
+            if !isButtonsLocked {
+                customBottomTabBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
+        .preferredColorScheme(isButtonsLocked ? .light : nil)
+        .background(
+            (isButtonsLocked ? Color.white : Color(UIColor.systemBackground))
+                .ignoresSafeArea()
+        )
         .tint(.green)
         .ignoresSafeArea(.keyboard)
         .onAppear {
@@ -330,16 +337,17 @@ public struct PhoneCompanionView: View {
             ZStack(alignment: .bottom) {
                 // 1. كامل مساحة شاشة الآيفون: تصبح كلها مساحة تسبيح تفاعلية ومؤمّنة 100%
                 VStack(spacing: 0) {
-                    Spacer(minLength: 16)
+                    Spacer(minLength: isButtonsLocked ? 20 : 16)
                     
                     // نوع الذكر الحالي
                     VStack(spacing: 6) {
                         Text("الذكر الحالي")
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(isButtonsLocked ? Color.black.opacity(0.5) : .secondary)
                         
                         Text(sync.currentZekr)
                             .font(.system(size: 28, weight: .bold))
+                            .foregroundColor(isButtonsLocked ? .black : .primary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
                     }
@@ -347,71 +355,20 @@ public struct PhoneCompanionView: View {
                     Spacer(minLength: 12)
                     
                     // بطاقة العداد الكبيرة والهدف
-                    VStack(spacing: 8) {
-                        Text("\(sync.currentCount)")
-                            .font(.system(size: 104, weight: .heavy, design: .rounded))
-                            .foregroundColor(.green)
-                            .contentTransition(.numericText())
-                        
-                        Text("الهدف: \(sync.target)")
-                            .font(.title3.weight(.medium))
-                            .foregroundColor(.secondary)
-                        
-                        // مؤشر اكتمال الهدف
-                        if sync.currentCount >= sync.target && sync.target > 0 {
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark.seal.fill")
-                                Text("ما شاء الله! اكتمل الهدف")
-                                    .font(.caption.bold())
-                            }
-                            .foregroundColor(.green)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 5)
-                            .background(Color.green.opacity(0.15))
-                            .clipShape(Capsule())
-                            .padding(.top, 2)
-                        }
-                        
-                        // مؤشر قفل الأخطاء
-                        if isButtonsLocked {
-                            HStack(spacing: 6) {
-                                Image(systemName: "lock.shield.fill")
-                                    .font(.caption2)
-                                Text("قفل الأخطاء مفعّل: كامل الشاشة والأزرار للتسبيح")
-                                    .font(.caption.bold())
-                            }
-                            .foregroundColor(.red)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 5)
-                            .background(Color.red.opacity(0.12))
-                            .clipShape(Capsule())
-                            .padding(.top, 4)
-                        }
-                    }
-                    .padding(.vertical, 24)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 32)
-                            .fill(Color.green.opacity(0.08))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 32)
-                                    .stroke(Color.green.opacity(0.2), lineWidth: 1)
-                            )
-                    )
-                    .padding(.horizontal, 16)
+                    counterCardView
                     
                     Spacer(minLength: 12)
                     
                     // إرشاد النقر على الشاشة
                     HStack(spacing: 6) {
-                        Image(systemName: isButtonsLocked ? "lock.fill" : "hand.tap.fill")
+                        Image(systemName: isButtonsLocked ? "hand.tap.fill" : "hand.tap.fill")
                             .font(.footnote)
-                        Text(isButtonsLocked ? "القفل مفعّل: جميع الأزرار وكامل الشاشة تعدّ الذكر" : "المس في أي مكان بالشاشة للتسبيح")
+                        Text(isButtonsLocked ? "المس في أي مكان بالشاشة للتسبيح" : "المس في أي مكان بالشاشة للتسبيح")
                             .font(.subheadline)
                     }
-                    .foregroundColor(isButtonsLocked ? .red.opacity(0.85) : .secondary)
+                    .foregroundColor(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
                     
-                    Spacer(minLength: isButtonsLocked ? 96 : 84)
+                    Spacer(minLength: isButtonsLocked ? 40 : 84)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
@@ -439,20 +396,112 @@ public struct PhoneCompanionView: View {
                         }
                 )
                 
-                // 2. الشريط السفلي: خيارات التحكم وقفل الأخطاء
-                bottomControlBar
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 6)
+                // 2. الشريط السفلي: خيارات التحكم وقفل الأخطاء (يختفي تماماً عند تفعيل القفل)
+                if !isButtonsLocked {
+                    bottomControlBar
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 6)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
+            .background(
+                (isButtonsLocked ? Color.white : Color(UIColor.systemBackground))
+                    .ignoresSafeArea()
+            )
             .navigationTitle("فَذَكِّرُونِي")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(isButtonsLocked ? Color.white : Color.clear, for: .navigationBar)
+            .toolbarBackground(isButtonsLocked ? .visible : .automatic, for: .navigationBar)
+            .toolbar {
+                if isButtonsLocked {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isButtonsLocked = false
+                            }
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        }) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "lock.open.fill")
+                                Text("فتح القفل")
+                            }
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.red)
+                            .clipShape(Capsule())
+                            .shadow(color: Color.red.opacity(0.3), radius: 4, y: 2)
+                        }
+                    }
+                }
+            }
         }
+    }
+    
+    // MARK: - بطاقة العداد والهدف وخلفيتها
+    private var counterCardBackground: some View {
+        RoundedRectangle(cornerRadius: 32)
+            .fill(isButtonsLocked ? Color.white : Color.green.opacity(0.08))
+            .overlay(
+                RoundedRectangle(cornerRadius: 32)
+                    .stroke(isButtonsLocked ? Color.gray.opacity(0.2) : Color.green.opacity(0.2), lineWidth: 1)
+            )
+            .shadow(color: isButtonsLocked ? Color.black.opacity(0.05) : Color.clear, radius: 10, y: 4)
+    }
+    
+    private var counterCardView: some View {
+        VStack(spacing: 8) {
+            Text("\(sync.currentCount)")
+                .font(.system(size: 104, weight: .heavy, design: .rounded))
+                .foregroundColor(.green)
+                .contentTransition(.numericText())
+            
+            Text("الهدف: \(sync.target)")
+                .font(.title3.weight(.medium))
+                .foregroundColor(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
+            
+            // مؤشر اكتمال الهدف
+            if sync.currentCount >= sync.target && sync.target > 0 {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.seal.fill")
+                    Text("ما شاء الله! اكتمل الهدف")
+                        .font(.caption.bold())
+                }
+                .foregroundColor(.green)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 5)
+                .background(Color.green.opacity(0.15))
+                .clipShape(Capsule())
+                .padding(.top, 2)
+            }
+            
+            // مؤشر قفل الأخطاء
+            if isButtonsLocked {
+                HStack(spacing: 6) {
+                    Image(systemName: "lock.shield.fill")
+                        .font(.caption2)
+                    Text("قفل الأخطاء مفعّل: المس أي مكان للعد")
+                        .font(.caption.bold())
+                }
+                .foregroundColor(.red)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 5)
+                .background(Color.red.opacity(0.12))
+                .clipShape(Capsule())
+                .padding(.top, 4)
+            }
+        }
+        .padding(.vertical, isButtonsLocked ? 36 : 24)
+        .frame(maxWidth: .infinity)
+        .background(counterCardBackground)
+        .padding(.horizontal, 16)
     }
     
     // MARK: - الشريط السفلي لخيارات التحكم وقفل الأخطاء
     private var bottomControlBar: some View {
         HStack(spacing: 14) {
-            // 1. زر الزائد (+) - عند القفل يعدّ الذكر أيضاً
+            // 1. زر الزائد (+)
             Button(action: {
                 incrementPhoneCount()
             }) {
@@ -464,96 +513,69 @@ public struct PhoneCompanionView: View {
                         .background(Color.green)
                         .clipShape(Circle())
                     
-                    Text(isButtonsLocked ? "تسبيح" : "زيادة")
+                    Text("زيادة")
                         .font(.caption2.bold())
                         .foregroundColor(.green)
                 }
             }
             
-            // 2. زر الناقص (-) - عند القفل يعدّ الذكر بدلاً من الإنقاص
+            // 2. زر الناقص (-)
             Button(action: {
-                if isButtonsLocked {
-                    incrementPhoneCount()
-                } else {
-                    if sync.currentCount > 0 {
-                        sync.sendSyncPayload(count: sync.currentCount - 1, zekr: sync.currentZekr, target: sync.target)
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    }
+                if sync.currentCount > 0 {
+                    sync.sendSyncPayload(count: sync.currentCount - 1, zekr: sync.currentZekr, target: sync.target)
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 }
             }) {
                 VStack(spacing: 4) {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "minus")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(isButtonsLocked ? .primary.opacity(0.7) : .red)
-                            .frame(width: 52, height: 52)
-                            .background(isButtonsLocked ? Color.gray.opacity(0.12) : Color.red.opacity(0.12))
-                            .clipShape(Circle())
-                        
-                        if isButtonsLocked {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.red)
-                                .offset(x: -2, y: 2)
-                        }
-                    }
+                    Image(systemName: "minus")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(.red)
+                        .frame(width: 52, height: 52)
+                        .background(Color.red.opacity(0.12))
+                        .clipShape(Circle())
                     
-                    Text(isButtonsLocked ? "تسبيح" : "ناقص")
+                    Text("ناقص")
                         .font(.caption2.bold())
-                        .foregroundColor(isButtonsLocked ? .secondary : .secondary)
+                        .foregroundColor(.secondary)
                 }
             }
             
-            // 3. زر تصفير العداد (↺) - عند القفل يعدّ الذكر بدلاً من التصفير
+            // 3. زر تصفير العداد (↺)
             Button(action: {
-                if isButtonsLocked {
-                    incrementPhoneCount()
-                } else {
-                    resetPhoneCount()
-                }
+                resetPhoneCount()
             }) {
                 VStack(spacing: 4) {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(isButtonsLocked ? .primary.opacity(0.7) : .orange)
-                            .frame(width: 52, height: 52)
-                            .background(isButtonsLocked ? Color.gray.opacity(0.12) : Color.orange.opacity(0.15))
-                            .clipShape(Circle())
-                        
-                        if isButtonsLocked {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.red)
-                                .offset(x: -2, y: 2)
-                        }
-                    }
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.orange)
+                        .frame(width: 52, height: 52)
+                        .background(Color.orange.opacity(0.15))
+                        .clipShape(Circle())
                     
-                    Text(isButtonsLocked ? "تسبيح" : "تصفير")
+                    Text("تصفير")
                         .font(.caption2.bold())
-                        .foregroundColor(isButtonsLocked ? .secondary : .orange)
+                        .foregroundColor(.orange)
                 }
             }
             
-            // 4. زر قفل الأخطاء (الزر الوحيد النشط لفتح القفل أو إغلاقه)
+            // 4. زر قفل الأخطاء (يخفي جميع الأزرار ويجعل الشاشة بيضاء نقية للتسبيح)
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.25)) {
-                    isButtonsLocked.toggle()
+                    isButtonsLocked = true
                 }
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             }) {
                 VStack(spacing: 4) {
-                    Image(systemName: isButtonsLocked ? "lock.fill" : "lock.open.fill")
+                    Image(systemName: "lock.shield.fill")
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(isButtonsLocked ? .white : .primary)
+                        .foregroundColor(.red)
                         .frame(width: 52, height: 52)
-                        .background(isButtonsLocked ? Color.red : Color.gray.opacity(0.18))
+                        .background(Color.red.opacity(0.14))
                         .clipShape(Circle())
-                        .shadow(color: isButtonsLocked ? Color.red.opacity(0.4) : Color.clear, radius: 6, y: 2)
                     
-                    Text(isButtonsLocked ? "فتح القفل" : "قفل الأخطاء")
+                    Text("قفل الأخطاء")
                         .font(.caption2.bold())
-                        .foregroundColor(isButtonsLocked ? .red : .secondary)
+                        .foregroundColor(.red)
                 }
             }
         }
@@ -563,32 +585,21 @@ public struct PhoneCompanionView: View {
             RoundedRectangle(cornerRadius: 24)
                 .fill(Color(UIColor.secondarySystemBackground))
                 .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
-                .contentShape(RoundedRectangle(cornerRadius: 24))
-                .onTapGesture {
-                    if isButtonsLocked {
-                        incrementPhoneCount()
-                    }
-                }
         )
     }
     
     // MARK: - شريط التبويبات السفلي (العداد - الأذكار والأهداف - إعدادات الساعة)
-    // عند قفل الأخطاء: الضغط على أي زر يعدّ الذكر أيضاً بدلاً من التنقل وحماية الجلسة
     private var customBottomTabBar: some View {
         HStack(spacing: 0) {
             // 1. زر العداد
             Button {
-                if isButtonsLocked {
-                    incrementPhoneCount()
-                } else {
-                    selectedTab = 0
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                }
+                selectedTab = 0
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
             } label: {
                 VStack(spacing: 4) {
                     Image(systemName: "timer")
                         .font(.system(size: 20, weight: selectedTab == 0 ? .bold : .regular))
-                    Text(isButtonsLocked ? "تسبيح" : "العداد")
+                    Text("العداد")
                         .font(.system(size: 11, weight: selectedTab == 0 ? .bold : .medium))
                 }
                 .foregroundColor(selectedTab == 0 ? .green : .secondary)
@@ -597,59 +608,35 @@ public struct PhoneCompanionView: View {
             }
             .buttonStyle(.plain)
             
-            // 2. زر الأذكار والأهداف (عند القفل يعدّ الذكر بدلاً من فتح القائمة)
+            // 2. زر الأذكار والأهداف
             Button {
-                if isButtonsLocked {
-                    incrementPhoneCount()
-                } else {
-                    selectedTab = 1
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                }
+                selectedTab = 1
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
             } label: {
                 VStack(spacing: 4) {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "list.bullet")
-                            .font(.system(size: 20, weight: selectedTab == 1 ? .bold : .regular))
-                        if isButtonsLocked {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.red)
-                                .offset(x: 8, y: -4)
-                        }
-                    }
-                    Text(isButtonsLocked ? "تسبيح (مقفل)" : "الأذكار والأهداف")
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 20, weight: selectedTab == 1 ? .bold : .regular))
+                    Text("الأذكار والأهداف")
                         .font(.system(size: 11, weight: selectedTab == 1 ? .bold : .medium))
                 }
-                .foregroundColor(isButtonsLocked ? .gray.opacity(0.65) : (selectedTab == 1 ? .green : .secondary))
+                .foregroundColor(selectedTab == 1 ? .green : .secondary)
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             
-            // 3. زر إعدادات الساعة (عند القفل يعدّ الذكر بدلاً من فتح الإعدادات)
+            // 3. زر إعدادات الساعة
             Button {
-                if isButtonsLocked {
-                    incrementPhoneCount()
-                } else {
-                    selectedTab = 2
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                }
+                selectedTab = 2
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
             } label: {
                 VStack(spacing: 4) {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "applewatch")
-                            .font(.system(size: 20, weight: selectedTab == 2 ? .bold : .regular))
-                        if isButtonsLocked {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundColor(.red)
-                                .offset(x: 8, y: -4)
-                        }
-                    }
-                    Text(isButtonsLocked ? "تسبيح (مقفل)" : "إعدادات الساعة")
+                    Image(systemName: "applewatch")
+                        .font(.system(size: 20, weight: selectedTab == 2 ? .bold : .regular))
+                    Text("إعدادات الساعة")
                         .font(.system(size: 11, weight: selectedTab == 2 ? .bold : .medium))
                 }
-                .foregroundColor(isButtonsLocked ? .gray.opacity(0.65) : (selectedTab == 2 ? .green : .secondary))
+                .foregroundColor(selectedTab == 2 ? .green : .secondary)
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
             }
@@ -657,15 +644,7 @@ public struct PhoneCompanionView: View {
         }
         .padding(.top, 8)
         .padding(.bottom, 6)
-        .background(
-            Color(UIColor.secondarySystemBackground)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if isButtonsLocked {
-                        incrementPhoneCount()
-                    }
-                }
-        )
+        .background(Color(UIColor.secondarySystemBackground))
         .overlay(
             Rectangle()
                 .frame(height: 0.5)
