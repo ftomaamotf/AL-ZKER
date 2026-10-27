@@ -215,7 +215,7 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
         guard isEnabled else { return }
         
         let content = UNMutableNotificationContent()
-        content.title = "فَذَكِّرُونِي - ما شاء الله! اكتمل الهدف 🎉"
+        content.title = "فَاذْكُرُونِي - ما شاء الله! اكتمل الهدف 🎉"
         content.body = "تم بحمد الله إتمام \(count) مرة من: \(zekr)"
         content.sound = .default
         
@@ -408,7 +408,7 @@ public struct PhoneCompanionView: View {
                 (isButtonsLocked ? Color.white : Color(UIColor.systemBackground))
                     .ignoresSafeArea()
             )
-            .navigationTitle("فَذَكِّرُونِي")
+            .navigationTitle("فَاذْكُرُونِي")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(isButtonsLocked ? Color.white : Color.clear, for: .navigationBar)
             .toolbarBackground(isButtonsLocked ? .visible : .automatic, for: .navigationBar)
@@ -1027,14 +1027,14 @@ public struct PhoneCompanionView: View {
                     HStack {
                         Text("اسم البرنامج")
                         Spacer()
-                        Text("فَذَكِّرُونِي")
+                        Text("فَاذْكُرُونِي")
                             .foregroundColor(.gray)
                     }
                     
                     HStack {
                         Text("الإصدار")
                         Spacer()
-                        Text("1.2.0 (واجهة الساعة النقية)")
+                        Text("2.1.0")
                             .foregroundColor(.gray)
                     }
                     

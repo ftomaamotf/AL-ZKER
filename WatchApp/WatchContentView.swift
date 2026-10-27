@@ -53,7 +53,7 @@ struct WatchContentView: View {
         VStack(spacing: 6) {
             // 1. المنطقة العلوية (العنوان + الذكر + العداد) قابلة للمس المباشر
             VStack(spacing: 4) {
-                Text("فَذَكِّرُونِي")
+                Text("فَاذْكُرُونِي")
                     .font(.headline)
                     .foregroundStyle(.primary)
 
