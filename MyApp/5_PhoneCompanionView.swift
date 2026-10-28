@@ -773,6 +773,19 @@ public struct PhoneCompanionView: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             sync.selectZekr(item)
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedTab = 0
+                            }
+                        }
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            Button {
+                                sync.resetZekrCount(for: item)
+                                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                            } label: {
+                                Label("تصفير العداد", systemImage: "arrow.counterclockwise")
+                            }
+                            .tint(.orange)
                         }
                     }
                     .onDelete { offsets in

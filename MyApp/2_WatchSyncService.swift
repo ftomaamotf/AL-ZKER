@@ -170,6 +170,20 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         syncAzkarListToPeer()
     }
     
+    // MARK: - تصفير عداد ذكر محدد من القائمة
+    public func resetZekrCount(for item: ZekrItem) {
+        if let idx = azkarList.firstIndex(where: { $0.id == item.id || $0.title == item.title }) {
+            azkarList[idx].count = 0
+            if currentZekr == azkarList[idx].title {
+                currentCount = 0
+                lastAlertedTargetCount = nil
+                sendSyncPayload(count: 0, zekr: currentZekr, target: target)
+            }
+            saveAzkarLocally()
+            syncAzkarListToPeer()
+        }
+    }
+    
     public func selectNextZekr() {
         guard !azkarList.isEmpty else { return }
         if let idx = azkarList.firstIndex(where: { $0.title == currentZekr }) {
