@@ -233,6 +233,26 @@ struct CrownOptionsView: View {
                     }
                     .padding(.vertical, 4)
                 }
+                
+                // 3. الخيار الثالث: اتجاه القبلة
+                NavigationLink {
+                    WatchQiblaView()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "safari.fill")
+                            .font(.title3)
+                            .foregroundColor(.teal)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("اتجاه القبلة")
+                                .font(.headline)
+                            Text("بوصلة دقيقة نحو الكعبة")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
             }
             .navigationTitle("الخيارات")
             .toolbar {

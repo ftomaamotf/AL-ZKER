@@ -12,5 +12,7 @@
 	</array>
 	<key>WKSupportsAlwaysOnDisplay</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>يستخدم فَاذْكُرُونِي موقعك لحساب اتجاه القبلة بدقة على ساعتك.</string>
 </dict>
 </plist>
