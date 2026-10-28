@@ -344,7 +344,7 @@ public struct PhoneCompanionView: View {
             }
         }
         .onChange(of: sync.currentZekr) { _ in
-            hasAlertedForCurrentTarget = false
+            hasAlertedForCurrentTarget = (sync.currentCount >= sync.target && sync.target > 0)
         }
     }
     
@@ -678,7 +678,7 @@ public struct PhoneCompanionView: View {
     
     private func resetPhoneCount() {
         hasAlertedForCurrentTarget = false
-        sync.sendSyncPayload(count: 0, zekr: sync.currentZekr, target: sync.target)
+        sync.resetCurrentZekrCount()
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
     }
     
@@ -742,9 +742,19 @@ public struct PhoneCompanionView: View {
                                     .font(.headline)
                                     .foregroundColor(sync.currentZekr == item.title ? .green : .primary)
                                 
-                                Text("الهدف: \(item.defaultTarget) مرة")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                HStack(spacing: 8) {
+                                    Text("المنجز: \(item.count) مرة")
+                                        .font(.caption.bold())
+                                        .foregroundColor(.green)
+                                    
+                                    Text("•")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("الهدف: \(item.defaultTarget) مرة")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
                             }
                             
                             Spacer()
@@ -923,7 +933,12 @@ public struct PhoneCompanionView: View {
                     
                     // العداد الحالي للساعة وزر تصفيره
                     HStack {
-                        Text("العداد الحالي على الساعة")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("العدد المحفوظ للذكر الحالي")
+                            Text("(\(sync.currentZekr))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                         Spacer()
                         Text("\(sync.currentCount)")
                             .font(.title3.bold())
@@ -931,10 +946,11 @@ public struct PhoneCompanionView: View {
                     }
                     
                     Button(role: .destructive) {
-                        sync.sendSyncPayload(count: 0, zekr: sync.currentZekr, target: sync.target)
+                        hasAlertedForCurrentTarget = false
+                        sync.resetCurrentZekrCount()
                         UINotificationFeedbackGenerator().notificationOccurred(.warning)
                     } label: {
-                        Label("تصفير عدّاد الساعة الآن", systemImage: "arrow.counterclockwise")
+                        Label("تصفير عدّاد الذكر الحالي فقط", systemImage: "arrow.counterclockwise")
                     }
                 }
                 
@@ -1051,7 +1067,7 @@ public struct PhoneCompanionView: View {
                     HStack {
                         Text("الإصدار")
                         Spacer()
-                        Text("2.1.0")
+                        Text("2.8")
                             .foregroundColor(.gray)
                     }
                     

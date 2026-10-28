@@ -352,9 +352,17 @@ struct WatchSelectZekrView: View {
                             Text(item.title)
                                 .font(.headline)
                                 .foregroundColor(sync.currentZekr == item.title ? .green : .primary)
-                            Text("الهدف: \(item.defaultTarget) مرة")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                            HStack(spacing: 6) {
+                                Text("المنجز: \(item.count)")
+                                    .font(.caption2.bold())
+                                    .foregroundColor(.green)
+                                Text("•")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Text("الهدف: \(item.defaultTarget)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                         Spacer()
                         if sync.currentZekr == item.title {

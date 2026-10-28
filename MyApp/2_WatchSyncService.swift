@@ -17,6 +17,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     @Published public var azkarList: [ZekrItem] = []
     
     private let azkarStorageKey = "fadhkuruni_saved_azkar_v1"
+    private let currentZekrStorageKey = "fadhkuruni_current_zekr_v1"
     
     private override init() {
         super.init()
@@ -34,9 +35,21 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             self.azkarList = ZekrItem.builtInAzkar
             saveAzkarLocally()
         }
+        
+        // استعادة الذكر المحفوظ والعدد الخاص به
+        let savedZekrTitle = UserDefaults.standard.string(forKey: currentZekrStorageKey)
+        if let title = savedZekrTitle, let activeItem = azkarList.first(where: { $0.title == title }) {
+            self.currentZekr = activeItem.title
+            self.currentCount = activeItem.count
+            self.target = activeItem.defaultTarget
+        } else if let firstItem = azkarList.first {
+            self.currentZekr = firstItem.title
+            self.currentCount = firstItem.count
+            self.target = firstItem.defaultTarget
+        }
     }
     
-    private func saveAzkarLocally() {
+    public func saveAzkarLocally() {
         if let encoded = try? JSONEncoder().encode(azkarList) {
             UserDefaults.standard.set(encoded, forKey: azkarStorageKey)
         }
@@ -45,7 +58,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     public func addZekr(title: String, target: Int) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let newItem = ZekrItem(title: trimmed, defaultTarget: max(1, target))
+        let newItem = ZekrItem(title: trimmed, defaultTarget: max(1, target), count: 0)
         azkarList.append(newItem)
         saveAzkarLocally()
         syncAzkarListToPeer()
@@ -55,11 +68,13 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         guard let index = azkarList.firstIndex(where: { $0.id == item.id }) else { return }
         let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let updated = ZekrItem(id: item.id, title: trimmed, defaultTarget: max(1, newTarget))
+        let currentItemCount = azkarList[index].count
+        let updated = ZekrItem(id: item.id, title: trimmed, defaultTarget: max(1, newTarget), count: currentItemCount)
         azkarList[index] = updated
         if currentZekr == item.title {
             currentZekr = trimmed
             self.target = max(1, newTarget)
+            UserDefaults.standard.set(trimmed, forKey: currentZekrStorageKey)
         }
         saveAzkarLocally()
         syncAzkarListToPeer()
@@ -70,6 +85,12 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         if azkarList.isEmpty {
             azkarList = ZekrItem.builtInAzkar
         }
+        if !azkarList.contains(where: { $0.title == currentZekr }), let first = azkarList.first {
+            currentZekr = first.title
+            currentCount = first.count
+            target = first.defaultTarget
+            UserDefaults.standard.set(first.title, forKey: currentZekrStorageKey)
+        }
         saveAzkarLocally()
         syncAzkarListToPeer()
     }
@@ -79,18 +100,74 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         if azkarList.isEmpty {
             azkarList = ZekrItem.builtInAzkar
         }
+        if !azkarList.contains(where: { $0.title == currentZekr }), let first = azkarList.first {
+            currentZekr = first.title
+            currentCount = first.count
+            target = first.defaultTarget
+            UserDefaults.standard.set(first.title, forKey: currentZekrStorageKey)
+        }
         saveAzkarLocally()
         syncAzkarListToPeer()
     }
     
     public func resetToDefaultAzkar() {
         azkarList = ZekrItem.builtInAzkar
+        if let first = azkarList.first {
+            currentZekr = first.title
+            currentCount = first.count
+            target = first.defaultTarget
+            UserDefaults.standard.set(first.title, forKey: currentZekrStorageKey)
+        }
         saveAzkarLocally()
         syncAzkarListToPeer()
     }
     
+    // MARK: - اختيار الذكر مع الاحتفاظ بعدد كل ذكر على حدة
     public func selectZekr(_ item: ZekrItem) {
-        sendSyncPayload(count: 0, zekr: item.title, target: item.defaultTarget)
+        // 1. حفظ عدد الذكر الحالي في القائمة محلياً قبل التبديل
+        if let currentIdx = azkarList.firstIndex(where: { $0.title == currentZekr }) {
+            azkarList[currentIdx].count = currentCount
+            azkarList[currentIdx].defaultTarget = target
+        }
+        
+        // 2. استرجاع العدد المحفوظ للذكر المختار الجديد
+        let savedCount: Int
+        let targetCount: Int
+        if let targetIdx = azkarList.firstIndex(where: { $0.id == item.id || $0.title == item.title }) {
+            savedCount = azkarList[targetIdx].count
+            targetCount = azkarList[targetIdx].defaultTarget
+        } else {
+            savedCount = item.count
+            targetCount = item.defaultTarget
+        }
+        
+        self.currentZekr = item.title
+        self.currentCount = savedCount
+        self.target = targetCount
+        UserDefaults.standard.set(item.title, forKey: currentZekrStorageKey)
+        
+        // منع إطلاق التنبيه الصوتي فور التبديل إذا كان الذكر قد وصل هدفه مسبقاً
+        if savedCount >= targetCount && targetCount > 0 {
+            lastAlertedTargetCount = savedCount
+        } else {
+            lastAlertedTargetCount = nil
+        }
+        
+        saveAzkarLocally()
+        sendSyncPayload(count: savedCount, zekr: item.title, target: targetCount)
+        syncAzkarListToPeer()
+    }
+    
+    // MARK: - تصفير عداد الذكر الحالي فقط (حصرياً من واجهة تطبيق الآيفون)
+    public func resetCurrentZekrCount() {
+        self.currentCount = 0
+        if let idx = azkarList.firstIndex(where: { $0.title == currentZekr }) {
+            azkarList[idx].count = 0
+        }
+        lastAlertedTargetCount = nil
+        saveAzkarLocally()
+        sendSyncPayload(count: 0, zekr: currentZekr, target: target)
+        syncAzkarListToPeer()
     }
     
     public func selectNextZekr() {
@@ -121,6 +198,13 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             return
         }
         guard session.isPaired, session.isWatchAppInstalled else { return }
+        
+        // التأكد من تضمين أحدث عداد للذكر الحالي قبل الإرسال
+        if let idx = azkarList.firstIndex(where: { $0.title == currentZekr }) {
+            azkarList[idx].count = currentCount
+            azkarList[idx].defaultTarget = target
+        }
+        
         guard let data = try? JSONEncoder().encode(azkarList) else { return }
         
         let payload: [String: Any] = [
@@ -138,7 +222,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
                 self?.sendReliableAzkarPayload(payload)
             }
         } else {
-            // 2. المسار المضمون بالخلفية: نقل موثوق يصل حتى لو كانت شاشة الساعة مقفلة
+            // 2. المسار المضمون بالخلفية
             sendReliableAzkarPayload(payload)
         }
         
@@ -146,7 +230,6 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         try? session.updateApplicationContext(payload)
     }
     
-    // إرسال قائمة الأذكار المضمونة في الخلفية مع إلغاء المعلق القديم
     private func sendReliableAzkarPayload(_ payload: [String: Any]) {
         let session = WCSession.default
         guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
@@ -189,6 +272,15 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         if self.currentZekr != zekr { self.currentZekr = zekr }
         if self.target != target { self.target = target }
         
+        // تحديث عدد الذكر الحالي في القائمة المحلية فوراً
+        if let idx = azkarList.firstIndex(where: { $0.title == zekr }) {
+            if azkarList[idx].count != count || azkarList[idx].defaultTarget != target {
+                azkarList[idx].count = count
+                azkarList[idx].defaultTarget = target
+                saveAzkarLocally()
+            }
+        }
+        
         checkAndTriggerTargetAlert(count: count)
         
         guard WCSession.isSupported() else { return }
@@ -213,7 +305,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
                 self?.sendReliableBackgroundPayload(payload)
             }
         } else {
-            // 2. المسار المضمون بالخلفية: إذا كانت شاشة الساعة خافتة أو غير مستيقظة تماماً
+            // 2. المسار المضمون بالخلفية
             sendReliableBackgroundPayload(payload)
         }
         
@@ -221,12 +313,10 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         try? session.updateApplicationContext(payload)
     }
     
-    // إرسال البيانات المضمونة في الخلفية مع إلغاء المعلق القديم لتجنب التأخير
     private func sendReliableBackgroundPayload(_ payload: [String: Any]) {
         let session = WCSession.default
         guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
         
-        // إلغاء أي نقل سابق معلق للعداد فقط حتى تصل أحدث قيمة، مع الحفاظ على نقل الأذكار
         for transfer in session.outstandingUserInfoTransfers {
             if let dict = transfer.userInfo as? [String: Any], dict["count"] != nil, dict["azkarData"] == nil {
                 transfer.cancel()
@@ -249,7 +339,6 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         DispatchQueue.main.async {
             print("Phone WCSession reachability changed: \(session.isReachable)")
             if session.isReachable {
-                // فور اتصال الساعة الحي واستيقاظها، نرسل لها أحدث تسبيح وقائمة الأذكار فوراً
                 self.sendSyncPayload(count: self.currentCount, zekr: self.currentZekr, target: self.target)
                 self.syncAzkarListToPeer()
             }
@@ -263,18 +352,15 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     }
     #endif
     
-    // استقبال الرسائل التفاعلية الفورية (بدون ReplyHandler)
     public func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
         handleIncomingPayload(message)
     }
     
-    // استقبال الرسائل التفاعلية الفورية (مع ReplyHandler)
     public func session(_ session: WCSession, didReceiveMessage message: [String : Any], replyHandler: @escaping ([String : Any]) -> Void) {
         handleIncomingPayload(message)
         replyHandler(["status": "ok", "currentCount": self.currentCount])
     }
     
-    // استقبال البيانات عند إيقاظ الآيفون في الخلفية والشاشة مقفلة
     public func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any] = [:]) {
         handleIncomingPayload(userInfo)
     }
@@ -285,25 +371,27 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     
     private func handleIncomingPayload(_ payload: [String: Any]) {
         DispatchQueue.main.async {
-            // استجابة لطلب المزامنة القادم من الساعة فور فتحها
             if let action = payload["action"] as? String, action == "requestSync" {
                 self.sendSyncPayload(count: self.currentCount, zekr: self.currentZekr, target: self.target)
                 self.syncAzkarListToPeer()
                 return
             }
             
-            if let countVal = payload["count"] {
-                if let countInt = countVal as? Int {
-                    self.currentCount = countInt
-                } else if let countNum = countVal as? NSNumber {
-                    self.currentCount = countNum.intValue
-                }
+            // 1. استقبال وتحديث قائمة الأذكار إن وجدت
+            if let azkarData = payload["azkarData"] as? Data,
+               let decoded = try? JSONDecoder().decode([ZekrItem].self, from: azkarData),
+               !decoded.isEmpty {
+                self.azkarList = decoded
+                self.saveAzkarLocally()
             }
             
+            // 2. تحديث الذكر الحالي
             if let zekr = (payload["zekr"] as? String) ?? (payload["currentZekr"] as? String) {
                 self.currentZekr = zekr
+                UserDefaults.standard.set(zekr, forKey: self.currentZekrStorageKey)
             }
             
+            // 3. تحديث الهدف
             if let targetVal = payload["target"] {
                 if let targetInt = targetVal as? Int {
                     self.target = targetInt
@@ -312,10 +400,21 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
                 }
             }
             
-            if let azkarData = payload["azkarData"] as? Data,
-               let decoded = try? JSONDecoder().decode([ZekrItem].self, from: azkarData),
-               !decoded.isEmpty {
-                self.azkarList = decoded
+            // 4. تحديث العداد
+            if let countVal = payload["count"] {
+                if let countInt = countVal as? Int {
+                    self.currentCount = countInt
+                } else if let countNum = countVal as? NSNumber {
+                    self.currentCount = countNum.intValue
+                }
+            } else if let activeItem = self.azkarList.first(where: { $0.title == self.currentZekr }) {
+                self.currentCount = activeItem.count
+            }
+            
+            // 5. مزامنة عدد الذكر الحالي في azkarList
+            if let idx = self.azkarList.firstIndex(where: { $0.title == self.currentZekr }) {
+                self.azkarList[idx].count = self.currentCount
+                self.azkarList[idx].defaultTarget = self.target
                 self.saveAzkarLocally()
             }
             
