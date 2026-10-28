@@ -288,6 +288,8 @@ public struct PhoneCompanionView: View {
                 case 1:
                     azkarTabView
                 case 2:
+                    PhoneQiblaView()
+                case 3:
                     settingsTabView
                 default:
                     counterTabView
@@ -642,18 +644,35 @@ public struct PhoneCompanionView: View {
             }
             .buttonStyle(.plain)
             
-            // 3. زر إعدادات الساعة
+            // 3. زر اتجاه القبلة
             Button {
                 selectedTab = 2
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             } label: {
                 VStack(spacing: 4) {
-                    Image(systemName: "applewatch")
+                    Image(systemName: "safari.fill")
                         .font(.system(size: 20, weight: selectedTab == 2 ? .bold : .regular))
-                    Text("إعدادات الساعة")
+                    Text("اتجاه القبلة")
                         .font(.system(size: 11, weight: selectedTab == 2 ? .bold : .medium))
                 }
                 .foregroundColor(selectedTab == 2 ? .green : .secondary)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            
+            // 4. زر إعدادات الساعة
+            Button {
+                selectedTab = 3
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "applewatch")
+                        .font(.system(size: 20, weight: selectedTab == 3 ? .bold : .regular))
+                    Text("إعدادات الساعة")
+                        .font(.system(size: 11, weight: selectedTab == 3 ? .bold : .medium))
+                }
+                .foregroundColor(selectedTab == 3 ? .green : .secondary)
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
             }

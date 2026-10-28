@@ -192,76 +192,92 @@ struct CrownOptionsView: View {
     
     var body: some View {
         NavigationStack {
-            List {
-                // 1. الخيار الأول: تحديد الهدف
-                NavigationLink {
-                    WatchSetTargetView(sync: sync, isPresented: $isPresented)
+            VStack(spacing: 0) {
+                // زر إغلاق في أعلى الشاشة في وسطها
+                Button {
+                    isPresented = false
                 } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "target")
-                            .font(.title3)
-                            .foregroundColor(.orange)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("تحديد الهدف")
-                                .font(.headline)
-                            Text("الهدف الحالي: \(sync.target)")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
+                    HStack(spacing: 5) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("إغلاق")
+                            .font(.system(size: 13, weight: .bold))
                     }
-                    .padding(.vertical, 4)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 6)
+                    .background(Color.gray.opacity(0.35))
+                    .clipShape(Capsule())
                 }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 4)
+                .padding(.bottom, 2)
                 
-                // 2. الخيار الثاني: تغيير نوع الذكر
-                NavigationLink {
-                    WatchSelectZekrView(sync: sync, isPresented: $isPresented)
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "repeat.circle.fill")
-                            .font(.title3)
-                            .foregroundColor(.green)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("تغيير نوع الذكر")
-                                .font(.headline)
-                            Text(sync.currentZekr)
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
+                List {
+                    // 1. الخيار الأول: تحديد الهدف
+                    NavigationLink {
+                        WatchSetTargetView(sync: sync, isPresented: $isPresented)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "target")
+                                .font(.title3)
+                                .foregroundColor(.orange)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("تحديد الهدف")
+                                    .font(.headline)
+                                Text("الهدف الحالي: \(sync.target)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
                         }
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 4)
-                }
-                
-                // 3. الخيار الثالث: اتجاه القبلة
-                NavigationLink {
-                    WatchQiblaView()
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "safari.fill")
-                            .font(.title3)
-                            .foregroundColor(.teal)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("اتجاه القبلة")
-                                .font(.headline)
-                            Text("بوصلة دقيقة نحو الكعبة")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                    
+                    // 2. الخيار الثاني: تغيير نوع الذكر
+                    NavigationLink {
+                        WatchSelectZekrView(sync: sync, isPresented: $isPresented)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "repeat.circle.fill")
+                                .font(.title3)
+                                .foregroundColor(.green)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("تغيير نوع الذكر")
+                                    .font(.headline)
+                                Text(sync.currentZekr)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
                         }
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 4)
+                    
+                    // 3. الخيار الثالث: اتجاه القبلة
+                    NavigationLink {
+                        WatchQiblaView()
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "safari.fill")
+                                .font(.title3)
+                                .foregroundColor(.teal)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("اتجاه القبلة")
+                                    .font(.headline)
+                                Text("بوصلة دقيقة نحو الكعبة")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
             }
-            .navigationTitle("الخيارات")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("إغلاق") {
-                        isPresented = false
-                    }
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
         }
         .environment(\.layoutDirection, .rightToLeft)
     }

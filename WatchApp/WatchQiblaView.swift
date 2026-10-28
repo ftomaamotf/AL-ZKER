@@ -135,12 +135,34 @@ public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDe
 // MARK: - واجهة عرض اتجاه القبلة لساعة آبل
 public struct WatchQiblaView: View {
     @StateObject private var qibla = QiblaManager.shared
+    @Environment(\.dismiss) private var dismiss
     
     public init() {}
     
     public var body: some View {
         ScrollView {
             VStack(spacing: 6) {
+                // زر الرجوع في أعلى الشاشة في وسطها
+                Button {
+                    dismiss()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "chevron.backward")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("الرجوع")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 6)
+                    .background(Color.gray.opacity(0.35))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 2)
+                .padding(.bottom, 2)
+                
                 // 1. المؤشر الرئيسي للقبلة والبوصلة
                 ZStack {
                     // القرص الخارجي للبوصلة
@@ -290,7 +312,8 @@ public struct WatchQiblaView: View {
             }
             .padding(.horizontal, 4)
         }
-        .navigationTitle("اتجاه القبلة")
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .environment(\.layoutDirection, .rightToLeft)
         .onAppear {
             qibla.start()
