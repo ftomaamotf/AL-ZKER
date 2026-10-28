@@ -256,7 +256,7 @@ struct CrownOptionsView: View {
                         .padding(.vertical, 4)
                     }
                     
-                    // 3. الخيار الثالث: القبلة والمواقيت
+                    // 3. الخيار الثالث: اتجاه القبلة
                     NavigationLink {
                         WatchQiblaView()
                     } label: {
@@ -266,9 +266,9 @@ struct CrownOptionsView: View {
                                 .foregroundColor(.teal)
                             
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("القبلة والمواقيت")
+                                Text("اتجاه القبلة")
                                     .font(.headline)
-                                Text("بوصلة الكعبة ومواقيت الصلاة")
+                                Text("بوصلة دقيقة نحو الكعبة")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }

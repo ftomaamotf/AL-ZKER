@@ -652,7 +652,7 @@ public struct PhoneCompanionView: View {
                 VStack(spacing: 4) {
                     Image(systemName: "safari.fill")
                         .font(.system(size: 20, weight: selectedTab == 2 ? .bold : .regular))
-                    Text("القبلة والمواقيت")
+                    Text("اتجاه القبلة")
                         .font(.system(size: 11, weight: selectedTab == 2 ? .bold : .medium))
                 }
                 .foregroundColor(selectedTab == 2 ? .green : .secondary)
