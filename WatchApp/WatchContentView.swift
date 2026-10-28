@@ -195,24 +195,29 @@ struct CrownOptionsView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // زر إغلاق في أعلى الشاشة في وسطها
-                Button {
-                    isPresented = false
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .bold))
-                        Text("إغلاق")
-                            .font(.system(size: 13, weight: .bold))
+                // زر إغلاق في أعلى يسار الشاشة
+                HStack {
+                    Button {
+                        isPresented = false
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("إغلاق")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(Color.gray.opacity(0.35))
+                        .clipShape(Capsule())
                     }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 6)
-                    .background(Color.gray.opacity(0.35))
-                    .clipShape(Capsule())
+                    .buttonStyle(.plain)
+                    
+                    Spacer()
                 }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .environment(\.layoutDirection, .leftToRight)
+                .padding(.horizontal, 10)
                 .padding(.top, 4)
                 .padding(.bottom, 2)
                 
