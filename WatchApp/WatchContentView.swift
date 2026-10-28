@@ -141,6 +141,7 @@ struct WatchContentView: View {
         }
         // إبقاء الساعة مستيقظة طالما التطبيق مفتوح ومزامنة العداد فوراً مع الآيفون
         .onAppear {
+            sync.activateSession()
             WatchKeepAwakeManager.shared.startKeepAwake()
             sync.requestSyncFromPhone()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -153,6 +154,7 @@ struct WatchContentView: View {
         }
         .onChange(of: scenePhase) {
             if scenePhase == .active {
+                sync.activateSession()
                 WatchKeepAwakeManager.shared.startKeepAwake()
                 sync.requestSyncFromPhone()
                 isCrownFocused = true

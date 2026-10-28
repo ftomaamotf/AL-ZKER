@@ -227,19 +227,17 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             "timestamp": Date().timeIntervalSince1970
         ]
         
-        // 1. المسار الفوري الحي: عند فتح تطبيق الساعة
-        if session.isReachable {
-            session.sendMessage(payload, replyHandler: nil) { [weak self] error in
-                print("Phone -> Watch azkar sendMessage error: \(error.localizedDescription), falling back to transferUserInfo")
-                self?.sendReliableAzkarPayload(payload)
-            }
-        } else {
-            // 2. المسار المضمون بالخلفية
-            sendReliableAzkarPayload(payload)
+        // 1. المسار الفوري الحي المباشر
+        session.sendMessage(payload, replyHandler: nil) { [weak self] error in
+            print("Phone -> Watch azkar sendMessage error: \(error.localizedDescription), falling back to transferUserInfo")
+            self?.sendReliableAzkarPayload(payload)
         }
         
-        // 3. تحديث سياق التطبيق العام
+        // 2. تحديث سياق التطبيق العام
         try? session.updateApplicationContext(payload)
+        
+        // 3. مسار الخلفية المضمون
+        sendReliableAzkarPayload(payload)
     }
     
     private func sendReliableAzkarPayload(_ payload: [String: Any]) {
@@ -310,19 +308,20 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             "timestamp": Date().timeIntervalSince1970
         ]
         
-        // 1. المسار الفوري الحي (Real-time Messaging): عند فتح تطبيق الساعة
-        if session.isReachable {
-            session.sendMessage(payload, replyHandler: nil) { [weak self] error in
-                print("Phone -> Watch sendMessage error: \(error.localizedDescription), falling back to transferUserInfo")
-                self?.sendReliableBackgroundPayload(payload)
-            }
-        } else {
-            // 2. المسار المضمون بالخلفية
-            sendReliableBackgroundPayload(payload)
+        // 1. المسار الفوري الحي الدائم (Real-time Direct Messaging):
+        // نقوم بمحاولة إرسال الرسالة الحية مباشرة لكل تسبيحة دون حجبها بشرط isReachable المتأخر في نظام iOS
+        session.sendMessage(payload, replyHandler: nil) { [weak self] error in
+            print("Phone -> Watch direct sendMessage failed: \(error.localizedDescription), using fallback")
+            self?.sendReliableBackgroundPayload(payload)
         }
         
-        // 3. تحديث سياق التطبيق العام للحفاظ على أحدث قيمة
+        // 2. تحديث سياق التطبيق العام للحفاظ على أحدث قيمة في النظام
         try? session.updateApplicationContext(payload)
+        
+        // 3. إرسال فوري مضمون عند الوصول للهدف أو التصفير
+        if count == target || count == 0 {
+            sendReliableBackgroundPayload(payload)
+        }
     }
     
     private func sendReliableBackgroundPayload(_ payload: [String: Any]) {

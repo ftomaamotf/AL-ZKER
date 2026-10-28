@@ -259,13 +259,11 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             "action": "requestSync",
             "timestamp": Date().timeIntervalSince1970
         ]
-        if session.isReachable {
-            session.sendMessage(pingPayload, replyHandler: nil) { _ in
-                WCSession.default.transferUserInfo(pingPayload)
-            }
-        } else {
-            session.transferUserInfo(pingPayload)
+        // طلب فوري مباشر
+        session.sendMessage(pingPayload, replyHandler: nil) { _ in
+            WCSession.default.transferUserInfo(pingPayload)
         }
+        try? session.updateApplicationContext(pingPayload)
     }
     
     /// Synchronize state changes to paired watch or phone
@@ -297,22 +295,14 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             "timestamp": Date().timeIntervalSince1970
         ]
         
-        // 1. إرسال مباشر فوري
-        if session.isReachable {
-            session.sendMessage(payload, replyHandler: nil) { [weak self] error in
-                print("Watch -> Phone sendMessage error: \(error.localizedDescription)")
-                self?.sendReliableBackgroundPayload(payload)
-            }
-        } else {
-            sendReliableBackgroundPayload(payload)
+        // 1. إرسال مباشر فوري دائم
+        session.sendMessage(payload, replyHandler: nil) { [weak self] error in
+            print("Watch -> Phone direct sendMessage error: \(error.localizedDescription)")
+            self?.sendReliableBackgroundPayload(payload)
         }
         
         // 2. تحديث سياق التطبيق
-        do {
-            try session.updateApplicationContext(payload)
-        } catch {
-            // تجاهل الخطأ عند التحديث السريع
-        }
+        try? session.updateApplicationContext(payload)
         
         // 3. إرسال فوري يوقظ الآيفون في الخلفية ويطلق الصوت عند الوصول للهدف حتى ولو كانت شاشة الآيفون مقفلة
         if count == target || count == 0 {

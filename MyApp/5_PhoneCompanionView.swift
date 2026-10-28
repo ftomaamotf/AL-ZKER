@@ -276,6 +276,7 @@ public struct PhoneCompanionView: View {
     @AppStorage("fadhkuruni_target_sound_id") private var selectedTargetSoundId: Int = 1
     @AppStorage("fadhkuruni_target_sound_enabled") private var isTargetSoundEnabled: Bool = true
     @State private var hasAlertedForCurrentTarget: Bool = false
+    @Environment(\.scenePhase) private var scenePhase
     
     public init() {}
     
@@ -311,6 +312,7 @@ public struct PhoneCompanionView: View {
         .tint(.green)
         .ignoresSafeArea(.keyboard)
         .onAppear {
+            sync.activateSession()
             if selectedTargetSoundId > 7 {
                 selectedTargetSoundId = 1
             }
@@ -328,9 +330,18 @@ public struct PhoneCompanionView: View {
             }
             
             // إرسال المزامنة بعد اكتمال تحميل الواجهة بسلاسة لتفادي أي تعارض في الخيوط
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 sync.sendSyncPayload(count: sync.currentCount, zekr: sync.currentZekr, target: sync.target)
                 sync.syncAzkarListToPeer()
+            }
+        }
+        .onChange(of: scenePhase) { newPhase in
+            if newPhase == .active {
+                sync.activateSession()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    sync.sendSyncPayload(count: sync.currentCount, zekr: sync.currentZekr, target: sync.target)
+                    sync.syncAzkarListToPeer()
+                }
             }
         }
         .onDisappear {
