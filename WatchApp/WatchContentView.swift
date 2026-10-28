@@ -49,6 +49,9 @@ struct WatchContentView: View {
     @State private var showCrownMenu: Bool = false
     @FocusState private var isCrownFocused: Bool
 
+    // توقيت آخر تسبيحة لإلغاء وتفادي أي هزة ثانية متكررة عند تحريك الأصابع
+    @State private var lastIncrementTime: Date = .distantPast
+
     var body: some View {
         VStack(spacing: 6) {
             // 1. المنطقة العلوية (العنوان + الذكر + العداد) قابلة للمس المباشر
@@ -78,8 +81,7 @@ struct WatchContentView: View {
 
             // 2. زر سَبِّح الأساسي (مخصص لاستقبال إيماءة Double Tap باليد)
             Button {
-                // عند التسبيح بحركة الأصبعين (Double Tap)، ساعة آبل تصدر هزة تلقائية واحدة من النظام؛
-                // لذلك نمنع تشغيل اهتزاز إضافي هنا لكي تكون هزة واحدة فقط مثل لمس الشاشة تماماً.
+                // استخدام أول هزة عند تحريك الأصابع وإلغاء الهزة الثانية تماماً
                 incrementCount(playClickHaptic: false)
             } label: {
                 Text("سَبِّح")
@@ -102,7 +104,7 @@ struct WatchContentView: View {
             by: 1.0,
             sensitivity: .low,
             isContinuous: false,
-            isHapticFeedbackEnabled: true
+            isHapticFeedbackEnabled: false // تعطيل اهتزاز التاج لعدم إصدار أي نقرة ثانوية عند حركة اليد
         )
         .onChange(of: crownRotation) { newValue in
             if abs(newValue) >= 1.0 && !showCrownMenu {
@@ -148,6 +150,13 @@ struct WatchContentView: View {
 
     // MARK: - التسبيح والاهتزاز
     private func incrementCount(playClickHaptic: Bool) {
+        let now = Date()
+        // إلغاء أي هزة ثانية متكررة عند تحريك الأصابع فوراً (Debounce 0.4s)
+        guard now.timeIntervalSince(lastIncrementTime) > 0.4 else {
+            return
+        }
+        lastIncrementTime = now
+
         let next = sync.currentCount + 1
         sync.sendSyncPayload(count: next, zekr: sync.currentZekr, target: sync.target)
         if playClickHaptic {
