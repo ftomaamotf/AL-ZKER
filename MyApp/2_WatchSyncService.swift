@@ -154,17 +154,19 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     
     /// Synchronize state changes to paired watch or phone
     public func sendSyncPayload(count: Int, zekr: String, target: Int) {
-        self.currentCount = count
-        self.currentZekr = zekr
-        self.target = target
+        if self.currentCount != count { self.currentCount = count }
+        if self.currentZekr != zekr { self.currentZekr = zekr }
+        if self.target != target { self.target = target }
         
         checkAndTriggerTargetAlert(count: count)
         
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
-        if session.activationState != .activated {
+        guard session.activationState == .activated else {
             session.activate()
+            return
         }
+        guard session.isPaired, session.isWatchAppInstalled else { return }
         
         let payload: [String: Any] = [
             "count": count,
@@ -185,17 +187,13 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         }
         
         // 3. تحديث سياق التطبيق العام للحفاظ على أحدث قيمة
-        do {
-            try session.updateApplicationContext(payload)
-        } catch {
-            // في حال التحديث السريع المتتالي يكتفى بـ sendMessage و transferUserInfo
-        }
+        try? session.updateApplicationContext(payload)
     }
     
     // إرسال البيانات المضمونة في الخلفية مع إلغاء المعلق القديم لتجنب التأخير
     private func sendReliableBackgroundPayload(_ payload: [String: Any]) {
         let session = WCSession.default
-        guard session.activationState == .activated else { return }
+        guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
         
         // إلغاء أي نقل سابق معلق للعداد حتى تصل أحدث قيمة فوراً دون تراكم الطابور
         for transfer in session.outstandingUserInfoTransfers {
@@ -210,8 +208,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     // MARK: - WCSessionDelegate
     public func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         if activationState == .activated {
-            syncAzkarListToPeer()
-            sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
+            DispatchQueue.global(qos: .utility).async {
+                self.syncAzkarListToPeer()
+            }
         }
     }
     

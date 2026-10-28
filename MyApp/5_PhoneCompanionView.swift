@@ -312,12 +312,20 @@ public struct PhoneCompanionView: View {
             if selectedTargetSoundId > 7 {
                 selectedTargetSoundId = 1
             }
-            SoundManager.shared.configureAudioSession()
-            NotificationManager.shared.requestAuthorization()
             if sync.currentCount >= sync.target && sync.target > 0 {
                 hasAlertedForCurrentTarget = true
             }
-            sync.sendSyncPayload(count: sync.currentCount, zekr: sync.currentZekr, target: sync.target)
+            
+            // تهيئة الصوت والإشعارات بشكل غير تزامني لتفادي أي تجميد للشاشة عند بدء التشغيل
+            DispatchQueue.global(qos: .userInitiated).async {
+                SoundManager.shared.configureAudioSession()
+                NotificationManager.shared.requestAuthorization()
+            }
+            
+            // إرسال المزامنة بعد اكتمال تحميل الواجهة بسلاسة لتفادي أي تعارض في الخيوط
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                sync.sendSyncPayload(count: sync.currentCount, zekr: sync.currentZekr, target: sync.target)
+            }
         }
         .onChange(of: sync.currentCount) { newCount in
             handleCountChange(newCount: newCount)

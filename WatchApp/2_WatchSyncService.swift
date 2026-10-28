@@ -157,14 +157,15 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     
     /// Synchronize state changes to paired watch or phone
     public func sendSyncPayload(count: Int, zekr: String, target: Int) {
-        self.currentCount = count
-        self.currentZekr = zekr
-        self.target = target
+        if self.currentCount != count { self.currentCount = count }
+        if self.currentZekr != zekr { self.currentZekr = zekr }
+        if self.target != target { self.target = target }
         
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
-        if session.activationState != .activated {
+        guard session.activationState == .activated else {
             session.activate()
+            return
         }
         
         let payload: [String: Any] = [
