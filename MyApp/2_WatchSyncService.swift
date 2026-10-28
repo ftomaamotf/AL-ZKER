@@ -161,27 +161,67 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         checkAndTriggerTargetAlert(count: count)
         
         guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        if session.activationState != .activated {
+            session.activate()
+        }
+        
         let payload: [String: Any] = [
             "count": count,
             "zekr": zekr,
             "target": target,
             "timestamp": Date().timeIntervalSince1970
         ]
-        if WCSession.default.isReachable {
-            WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
-        }
-        try? WCSession.default.updateApplicationContext(payload)
         
-        // إرسال فوري بالخلفية لإيقاظ الجهاز المقترن
-        if count == target || count == 0 {
-            WCSession.default.transferUserInfo(payload)
+        // 1. المسار الفوري الحي (Real-time Messaging): عند فتح تطبيق الساعة
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { [weak self] error in
+                print("Phone -> Watch sendMessage error: \(error.localizedDescription), falling back to transferUserInfo")
+                self?.sendReliableBackgroundPayload(payload)
+            }
+        } else {
+            // 2. المسار المضمون بالخلفية: إذا كانت شاشة الساعة خافتة أو غير مستيقظة تماماً
+            sendReliableBackgroundPayload(payload)
         }
+        
+        // 3. تحديث سياق التطبيق العام للحفاظ على أحدث قيمة
+        do {
+            try session.updateApplicationContext(payload)
+        } catch {
+            // في حال التحديث السريع المتتالي يكتفى بـ sendMessage و transferUserInfo
+        }
+    }
+    
+    // إرسال البيانات المضمونة في الخلفية مع إلغاء المعلق القديم لتجنب التأخير
+    private func sendReliableBackgroundPayload(_ payload: [String: Any]) {
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        
+        // إلغاء أي نقل سابق معلق للعداد حتى تصل أحدث قيمة فوراً دون تراكم الطابور
+        for transfer in session.outstandingUserInfoTransfers {
+            if let dict = transfer.userInfo as? [String: Any], dict["count"] != nil {
+                transfer.cancel()
+            }
+        }
+        
+        session.transferUserInfo(payload)
     }
     
     // MARK: - WCSessionDelegate
     public func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         if activationState == .activated {
             syncAzkarListToPeer()
+            sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
+        }
+    }
+    
+    public func sessionReachabilityDidChange(_ session: WCSession) {
+        DispatchQueue.main.async {
+            print("Phone WCSession reachability changed: \(session.isReachable)")
+            if session.isReachable {
+                // فور اتصال الساعة الحي واستيقاظها، نرسل لها أحدث تسبيح فوراً
+                self.sendSyncPayload(count: self.currentCount, zekr: self.currentZekr, target: self.target)
+            }
         }
     }
     
@@ -192,9 +232,15 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     }
     #endif
     
-    // استقبال الرسائل التفاعلية الفورية
+    // استقبال الرسائل التفاعلية الفورية (بدون ReplyHandler)
     public func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
         handleIncomingPayload(message)
+    }
+    
+    // استقبال الرسائل التفاعلية الفورية (مع ReplyHandler)
+    public func session(_ session: WCSession, didReceiveMessage message: [String : Any], replyHandler: @escaping ([String : Any]) -> Void) {
+        handleIncomingPayload(message)
+        replyHandler(["status": "ok", "currentCount": self.currentCount])
     }
     
     // استقبال البيانات عند إيقاظ الآيفون في الخلفية والشاشة مقفلة
@@ -208,10 +254,31 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     
     private func handleIncomingPayload(_ payload: [String: Any]) {
         DispatchQueue.main.async {
-            if let count = payload["count"] as? Int { self.currentCount = count }
-            if let zekr = payload["zekr"] as? String { self.currentZekr = zekr }
-            if let target = payload["target"] as? Int { self.target = target }
-            if let currentZekr = payload["currentZekr"] as? String { self.currentZekr = currentZekr }
+            // استجابة لطلب المزامنة القادم من الساعة فور فتحها
+            if let action = payload["action"] as? String, action == "requestSync" {
+                self.sendSyncPayload(count: self.currentCount, zekr: self.currentZekr, target: self.target)
+                return
+            }
+            
+            if let countVal = payload["count"] {
+                if let countInt = countVal as? Int {
+                    self.currentCount = countInt
+                } else if let countNum = countVal as? NSNumber {
+                    self.currentCount = countNum.intValue
+                }
+            }
+            
+            if let zekr = (payload["zekr"] as? String) ?? (payload["currentZekr"] as? String) {
+                self.currentZekr = zekr
+            }
+            
+            if let targetVal = payload["target"] {
+                if let targetInt = targetVal as? Int {
+                    self.target = targetInt
+                } else if let targetNum = targetVal as? NSNumber {
+                    self.target = targetNum.intValue
+                }
+            }
             
             if let azkarData = payload["azkarData"] as? Data,
                let decoded = try? JSONDecoder().decode([ZekrItem].self, from: azkarData),

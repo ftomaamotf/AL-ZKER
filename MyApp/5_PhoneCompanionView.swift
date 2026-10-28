@@ -317,6 +317,7 @@ public struct PhoneCompanionView: View {
             if sync.currentCount >= sync.target && sync.target > 0 {
                 hasAlertedForCurrentTarget = true
             }
+            sync.sendSyncPayload(count: sync.currentCount, zekr: sync.currentZekr, target: sync.target)
         }
         .onChange(of: sync.currentCount) { newCount in
             handleCountChange(newCount: newCount)
