@@ -49,6 +49,9 @@ struct WatchContentView: View {
     @State private var showCrownMenu: Bool = false
     @FocusState private var isCrownFocused: Bool
 
+    // تتبع وقت لمس الشاشة الفعلي باليد لتمييز النقر على الشاشة عن إيماءة الأصبعين (Double Tap)
+    @State private var lastScreenTouchTime: Date = .distantPast
+
     var body: some View {
         VStack(spacing: 6) {
             // 1. المنطقة العلوية (العنوان + الذكر + العداد) قابلة للمس المباشر
@@ -73,12 +76,15 @@ struct WatchContentView: View {
             .contentShape(Rectangle())
             // لمس المنطقة العلوية للعد
             .onTapGesture {
-                incrementCount()
+                incrementCount(playClickHaptic: true)
             }
 
             // 2. زر سَبِّح الأساسي (مخصص لاستقبال إيماءة Double Tap باليد)
             Button {
-                incrementCount()
+                let isPhysicalScreenTouch = Date().timeIntervalSince(lastScreenTouchTime) < 0.4
+                // إذا تم التسبيح بإيماءة الأصبعين (Double Tap)، يصدر نظام الساعة اهتزازاً تلقائياً
+                // لذلك نمنع الاهتزاز الإضافي ليكون الاهتزاز مرة واحدة فقط بدقة
+                incrementCount(playClickHaptic: isPhysicalScreenTouch)
             } label: {
                 Text("سَبِّح")
                     .font(.title3.bold())
@@ -86,6 +92,12 @@ struct WatchContentView: View {
                     .frame(height: 50)
             }
             .tint(.green)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        lastScreenTouchTime = Date()
+                    }
+            )
             .enableDoubleTapGesture() // تفعيل إيماءة النقر المزدوج بالسبابة والإبهام
         }
         .padding(.horizontal, 8)
@@ -145,10 +157,12 @@ struct WatchContentView: View {
     }
 
     // MARK: - التسبيح والاهتزاز
-    private func incrementCount() {
+    private func incrementCount(playClickHaptic: Bool) {
         let next = sync.currentCount + 1
         sync.sendSyncPayload(count: next, zekr: sync.currentZekr, target: sync.target)
-        WKInterfaceDevice.current().play(.click)
+        if playClickHaptic {
+            WKInterfaceDevice.current().play(.click)
+        }
         if next == sync.target {
             WKInterfaceDevice.current().play(.success)
         }

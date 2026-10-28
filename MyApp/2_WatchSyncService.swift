@@ -113,21 +113,52 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         }
     }
     
-    private func syncAzkarListToPeer() {
+    public func syncAzkarListToPeer() {
         guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            session.activate()
+            return
+        }
+        guard session.isPaired, session.isWatchAppInstalled else { return }
         guard let data = try? JSONEncoder().encode(azkarList) else { return }
         
         let payload: [String: Any] = [
             "azkarData": data,
             "currentZekr": currentZekr,
             "target": target,
-            "count": currentCount
+            "count": currentCount,
+            "timestamp": Date().timeIntervalSince1970
         ]
         
-        if WCSession.default.isReachable {
-            WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
+        // 1. المسار الفوري الحي: عند فتح تطبيق الساعة
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { [weak self] error in
+                print("Phone -> Watch azkar sendMessage error: \(error.localizedDescription), falling back to transferUserInfo")
+                self?.sendReliableAzkarPayload(payload)
+            }
+        } else {
+            // 2. المسار المضمون بالخلفية: نقل موثوق يصل حتى لو كانت شاشة الساعة مقفلة
+            sendReliableAzkarPayload(payload)
         }
-        try? WCSession.default.updateApplicationContext(payload)
+        
+        // 3. تحديث سياق التطبيق العام
+        try? session.updateApplicationContext(payload)
+    }
+    
+    // إرسال قائمة الأذكار المضمونة في الخلفية مع إلغاء المعلق القديم
+    private func sendReliableAzkarPayload(_ payload: [String: Any]) {
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
+        
+        for transfer in session.outstandingUserInfoTransfers {
+            if let dict = transfer.userInfo as? [String: Any], dict["azkarData"] != nil {
+                transfer.cancel()
+            }
+        }
+        
+        session.transferUserInfo(payload)
+        print("Phone: Enqueued reliable azkar transfer to watch (\(azkarList.count) items)")
     }
     
     public func activateSession() {
@@ -195,9 +226,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         let session = WCSession.default
         guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
         
-        // إلغاء أي نقل سابق معلق للعداد حتى تصل أحدث قيمة فوراً دون تراكم الطابور
+        // إلغاء أي نقل سابق معلق للعداد فقط حتى تصل أحدث قيمة، مع الحفاظ على نقل الأذكار
         for transfer in session.outstandingUserInfoTransfers {
-            if let dict = transfer.userInfo as? [String: Any], dict["count"] != nil {
+            if let dict = transfer.userInfo as? [String: Any], dict["count"] != nil, dict["azkarData"] == nil {
                 transfer.cancel()
             }
         }
@@ -218,8 +249,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         DispatchQueue.main.async {
             print("Phone WCSession reachability changed: \(session.isReachable)")
             if session.isReachable {
-                // فور اتصال الساعة الحي واستيقاظها، نرسل لها أحدث تسبيح فوراً
+                // فور اتصال الساعة الحي واستيقاظها، نرسل لها أحدث تسبيح وقائمة الأذكار فوراً
                 self.sendSyncPayload(count: self.currentCount, zekr: self.currentZekr, target: self.target)
+                self.syncAzkarListToPeer()
             }
         }
     }
@@ -256,6 +288,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             // استجابة لطلب المزامنة القادم من الساعة فور فتحها
             if let action = payload["action"] as? String, action == "requestSync" {
                 self.sendSyncPayload(count: self.currentCount, zekr: self.currentZekr, target: self.target)
+                self.syncAzkarListToPeer()
                 return
             }
             

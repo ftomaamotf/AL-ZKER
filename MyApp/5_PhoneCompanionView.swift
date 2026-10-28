@@ -325,6 +325,7 @@ public struct PhoneCompanionView: View {
             // إرسال المزامنة بعد اكتمال تحميل الواجهة بسلاسة لتفادي أي تعارض في الخيوط
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 sync.sendSyncPayload(count: sync.currentCount, zekr: sync.currentZekr, target: sync.target)
+                sync.syncAzkarListToPeer()
             }
         }
         .onChange(of: sync.currentCount) { newCount in

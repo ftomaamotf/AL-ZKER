@@ -113,21 +113,44 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         }
     }
     
-    private func syncAzkarListToPeer() {
+    public func syncAzkarListToPeer() {
         guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            session.activate()
+            return
+        }
         guard let data = try? JSONEncoder().encode(azkarList) else { return }
         
         let payload: [String: Any] = [
             "azkarData": data,
             "currentZekr": currentZekr,
             "target": target,
-            "count": currentCount
+            "count": currentCount,
+            "timestamp": Date().timeIntervalSince1970
         ]
         
-        if WCSession.default.isReachable {
-            WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { [weak self] error in
+                print("Watch -> Phone azkar sendMessage error: \(error.localizedDescription), falling back to transferUserInfo")
+                self?.sendReliableAzkarPayload(payload)
+            }
+        } else {
+            sendReliableAzkarPayload(payload)
         }
-        try? WCSession.default.updateApplicationContext(payload)
+        try? session.updateApplicationContext(payload)
+    }
+    
+    private func sendReliableAzkarPayload(_ payload: [String: Any]) {
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        for transfer in session.outstandingUserInfoTransfers {
+            if let dict = transfer.userInfo as? [String: Any], dict["azkarData"] != nil {
+                transfer.cancel()
+            }
+        }
+        session.transferUserInfo(payload)
+        print("Watch: Enqueued reliable azkar transfer to phone (\(azkarList.count) items)")
     }
     
     public func activateSession() {
@@ -149,7 +172,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             "timestamp": Date().timeIntervalSince1970
         ]
         if session.isReachable {
-            session.sendMessage(pingPayload, replyHandler: nil, errorHandler: nil)
+            session.sendMessage(pingPayload, replyHandler: nil) { _ in
+                WCSession.default.transferUserInfo(pingPayload)
+            }
         } else {
             session.transferUserInfo(pingPayload)
         }
@@ -202,7 +227,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         let session = WCSession.default
         guard session.activationState == .activated else { return }
         for transfer in session.outstandingUserInfoTransfers {
-            if let dict = transfer.userInfo as? [String: Any], dict["count"] != nil {
+            if let dict = transfer.userInfo as? [String: Any], dict["count"] != nil, dict["azkarData"] == nil {
                 transfer.cancel()
             }
         }
