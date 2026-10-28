@@ -207,11 +207,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     public func syncAzkarListToPeer() {
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
-        guard session.activationState == .activated else {
+        if session.activationState != .activated {
             session.activate()
-            return
         }
-        guard session.isPaired, session.isWatchAppInstalled else { return }
         
         // التأكد من تضمين أحدث عداد للذكر الحالي قبل الإرسال
         if let idx = azkarList.firstIndex(where: { $0.title == currentZekr }) {
@@ -246,7 +244,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     
     private func sendReliableAzkarPayload(_ payload: [String: Any]) {
         let session = WCSession.default
-        guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
+        if session.activationState != .activated {
+            session.activate()
+        }
         
         for transfer in session.outstandingUserInfoTransfers {
             if let dict = transfer.userInfo as? [String: Any], dict["azkarData"] != nil {
@@ -299,11 +299,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         
         guard WCSession.isSupported() else { return }
         let session = WCSession.default
-        guard session.activationState == .activated else {
+        if session.activationState != .activated {
             session.activate()
-            return
         }
-        guard session.isPaired, session.isWatchAppInstalled else { return }
         
         let payload: [String: Any] = [
             "count": count,
@@ -329,7 +327,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     
     private func sendReliableBackgroundPayload(_ payload: [String: Any]) {
         let session = WCSession.default
-        guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
+        if session.activationState != .activated {
+            session.activate()
+        }
         
         for transfer in session.outstandingUserInfoTransfers {
             if let dict = transfer.userInfo as? [String: Any], dict["count"] != nil, dict["azkarData"] == nil {
