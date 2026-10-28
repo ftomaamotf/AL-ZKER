@@ -7,7 +7,9 @@ final class WatchKeepAwakeManager: NSObject, WKExtendedRuntimeSessionDelegate {
     private var session: WKExtendedRuntimeSession?
 
     func startKeepAwake() {
-        guard session == nil || session?.state == .invalid else { return }
+        if let s = session, s.state == .running || s.state == .scheduled {
+            return
+        }
         let newSession = WKExtendedRuntimeSession()
         newSession.delegate = self
         newSession.start()
@@ -21,10 +23,22 @@ final class WatchKeepAwakeManager: NSObject, WKExtendedRuntimeSessionDelegate {
         session = nil
     }
 
-    func extendedRuntimeSessionDidStart(_ extendedRuntimeSession: WKExtendedRuntimeSession) {}
-    func extendedRuntimeSessionWillExpire(_ extendedRuntimeSession: WKExtendedRuntimeSession) {}
-    func extendedRuntimeSession(_ extendedRuntimeSession: WKExtendedRuntimeSession, didInvalidateWith reason: WKExtendedRuntimeSessionInvalidationReason, error: Error?) {
+    func extendedRuntimeSessionDidStart(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
+        print("KeepAwake: Mindfulness session started successfully")
+    }
+
+    func extendedRuntimeSessionWillExpire(_ extendedRuntimeSession: WKExtendedRuntimeSession) {
+        print("KeepAwake: Session expiring, restarting...")
         session = nil
+        startKeepAwake()
+    }
+
+    func extendedRuntimeSession(_ extendedRuntimeSession: WKExtendedRuntimeSession, didInvalidateWith reason: WKExtendedRuntimeSessionInvalidationReason, error: Error?) {
+        print("KeepAwake: Session invalidated: reason=\(reason.rawValue), error=\(String(describing: error))")
+        session = nil
+        if reason == .expired {
+            startKeepAwake()
+        }
     }
 }
 
@@ -156,6 +170,9 @@ struct WatchContentView: View {
             return
         }
         lastIncrementTime = now
+        
+        // تنشيط جلسة إبقاء الشاشة مستيقظة مع كل تسبيحة
+        WatchKeepAwakeManager.shared.startKeepAwake()
 
         let next = sync.currentCount + 1
         sync.sendSyncPayload(count: next, zekr: sync.currentZekr, target: sync.target)

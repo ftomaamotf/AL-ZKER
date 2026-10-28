@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		000000000000000151000000 /* فذكروني Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 000000000000000000000220 /* فذكروني Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		DF676E83308EBE8200091DDB /* fadhkuruni.appex in Embed ExtensionKit Extensions */ = {isa = PBXBuildFile; fileRef = DF676E7A308EBE8200091DDB /* fadhkuruni.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -18,13 +17,6 @@
 			proxyType = 1;
 			remoteGlobalIDString = 000000000000000200000000;
 			remoteInfo = "فذكروني Watch App";
-		};
-		DF676E81308EBE8200091DDB /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 000000000000000000000000 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = DF676E79308EBE8200091DDB;
-			remoteInfo = fadhkuruni;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -38,15 +30,6 @@
 			);
 			name = "Embed Watch Content";
 		};
-		DF676E88308EBE8200091DDB /* Embed ExtensionKit Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
-			dstSubfolder = Product;
-			files = (
-				DF676E83308EBE8200091DDB /* fadhkuruni.appex in Embed ExtensionKit Extensions */,
-			);
-			name = "Embed ExtensionKit Extensions";
-		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -55,16 +38,6 @@
 		DF676E75308EBD5600091DDB /* --------Watch-App-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "--------Watch-App-Info.plist"; sourceTree = "<group>"; };
 		DF676E7A308EBE8200091DDB /* fadhkuruni.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = fadhkuruni.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		DF676E84308EBE8200091DDB /* Exceptions for "fadhkuruni" folder in "fadhkuruni" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = DF676E79308EBE8200091DDB /* fadhkuruni */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		000000000000000000000010 /* MyApp */ = {
@@ -79,9 +52,6 @@
 		};
 		DF676E7B308EBE8200091DDB /* fadhkuruni */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				DF676E84308EBE8200091DDB /* Exceptions for "fadhkuruni" folder in "fadhkuruni" target */,
-			);
 			path = fadhkuruni;
 			sourceTree = "<group>";
 		};
@@ -94,11 +64,6 @@
 			);
 		};
 		000000000000000230000000 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			files = (
-			);
-		};
-		DF676E77308EBE8200091DDB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
 			);
@@ -162,8 +127,6 @@
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
 			fileSystemSynchronizedGroups = (
 				000000000000000000000030 /* WatchApp */,
 			);
@@ -171,24 +134,6 @@
 			productName = "فذكروني Watch App";
 			productReference = 000000000000000000000220 /* فذكروني Watch App.app */;
 			productType = "com.apple.product-type.application";
-		};
-		DF676E79308EBE8200091DDB /* fadhkuruni */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = DF676E85308EBE8200091DDB /* Build configuration list for PBXNativeTarget "fadhkuruni" */;
-			buildPhases = (
-				DF676E76308EBE8200091DDB /* Sources */,
-				DF676E77308EBE8200091DDB /* Frameworks */,
-				DF676E78308EBE8200091DDB /* Resources */,
-			);
-			buildRules = (
-			);
-			fileSystemSynchronizedGroups = (
-				DF676E7B308EBE8200091DDB /* fadhkuruni */,
-			);
-			name = fadhkuruni;
-			productName = fadhkuruni;
-			productReference = DF676E7A308EBE8200091DDB /* fadhkuruni.appex */;
-			productType = "com.apple.product-type.extensionkit-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -205,9 +150,6 @@
 					};
 					000000000000000200000000 = {
 						CreatedOnToolsVersion = 26.3;
-					};
-					DF676E79308EBE8200091DDB = {
-						CreatedOnToolsVersion = 27.1;
 					};
 				};
 			};
@@ -242,11 +184,6 @@
 			files = (
 			);
 		};
-		DF676E78308EBE8200091DDB /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			files = (
-			);
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -260,11 +197,6 @@
 			files = (
 			);
 		};
-		DF676E76308EBE8200091DDB /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			files = (
-			);
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -272,11 +204,6 @@
 			isa = PBXTargetDependency;
 			target = 000000000000000200000000 /* فذكروني Watch App */;
 			targetProxy = 000000000000000161000000 /* PBXContainerItemProxy */;
-		};
-		DF676E82308EBE8200091DDB /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = DF676E79308EBE8200091DDB /* fadhkuruni */;
-			targetProxy = DF676E81308EBE8200091DDB /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -418,7 +345,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = L759HKG8U7;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
@@ -435,11 +362,11 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "فَاذْكُرُونِي";
-				INFOPLIST_KEY_UIBackgroundModes = "audio";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UIBackgroundModes = audio;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
@@ -448,7 +375,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MARKETING_VERSION = 2.6;
+				MARKETING_VERSION = 2.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.abduallhajmi.fadhkuruni;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -469,7 +396,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = L759HKG8U7;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
@@ -486,11 +413,11 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "فَاذْكُرُونِي";
-				INFOPLIST_KEY_UIBackgroundModes = "audio";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UIBackgroundModes = audio;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
@@ -499,7 +426,7 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
-				MARKETING_VERSION = 2.6;
+				MARKETING_VERSION = 2.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.abduallhajmi.fadhkuruni;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -522,16 +449,17 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = L759HKG8U7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "WatchApp-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "فَاذْكُرُونِي";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKBackgroundModes = mindfulness;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.abduallhajmi.fadhkuruni;
-				INFOPLIST_KEY_WKBackgroundModes = "mindfulness";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MARKETING_VERSION = 2.6;
+				MARKETING_VERSION = 2.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.abduallhajmi.fadhkuruni.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -553,16 +481,17 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = L759HKG8U7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "WatchApp-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "فَاذْكُرُونِي";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKBackgroundModes = mindfulness;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.abduallhajmi.fadhkuruni;
-				INFOPLIST_KEY_WKBackgroundModes = "mindfulness";
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MARKETING_VERSION = 2.6;
+				MARKETING_VERSION = 2.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.abduallhajmi.fadhkuruni.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -574,69 +503,6 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
-			};
-			name = Release;
-		};
-		DF676E86308EBE8200091DDB /* Debug configuration for PBXNativeTarget "fadhkuruni" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
-				DEVELOPMENT_TEAM = L759HKG8U7;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fadhkuruni/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = fadhkuruni;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-					"@executable_path/../../../../Frameworks",
-				);
-				MARKETING_VERSION = 2.6;
-				PRODUCT_BUNDLE_IDENTIFIER = com.abduallhajmi.fadhkuruni.watchkitapp.fadhkuruni;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-			};
-			name = Debug;
-		};
-		DF676E87308EBE8200091DDB /* Release configuration for PBXNativeTarget "fadhkuruni" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
-				DEVELOPMENT_TEAM = L759HKG8U7;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fadhkuruni/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = fadhkuruni;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-					"@executable_path/../../../../Frameworks",
-				);
-				MARKETING_VERSION = 2.6;
-				PRODUCT_BUNDLE_IDENTIFIER = com.abduallhajmi.fadhkuruni.watchkitapp.fadhkuruni;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -664,14 +530,6 @@
 			buildConfigurations = (
 				000000000000000211000000 /* Debug configuration for PBXNativeTarget "فذكروني Watch App" */,
 				000000000000000212000000 /* Release configuration for PBXNativeTarget "فذكروني Watch App" */,
-			);
-			defaultConfigurationName = Release;
-		};
-		DF676E85308EBE8200091DDB /* Build configuration list for PBXNativeTarget "fadhkuruni" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				DF676E86308EBE8200091DDB /* Debug configuration for PBXNativeTarget "fadhkuruni" */,
-				DF676E87308EBE8200091DDB /* Release configuration for PBXNativeTarget "fadhkuruni" */,
 			);
 			defaultConfigurationName = Release;
 		};

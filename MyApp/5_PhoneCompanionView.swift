@@ -316,6 +316,9 @@ public struct PhoneCompanionView: View {
                 hasAlertedForCurrentTarget = true
             }
             
+            // إبقاء شاشة الآيفون مضاءة طالما التطبيق مفتوح لمنع الخفوت والقفل التلقائي
+            UIApplication.shared.isIdleTimerDisabled = true
+            
             // تهيئة الصوت والإشعارات بشكل غير تزامني لتفادي أي تجميد للشاشة عند بدء التشغيل
             DispatchQueue.global(qos: .userInitiated).async {
                 SoundManager.shared.configureAudioSession()
@@ -327,6 +330,10 @@ public struct PhoneCompanionView: View {
                 sync.sendSyncPayload(count: sync.currentCount, zekr: sync.currentZekr, target: sync.target)
                 sync.syncAzkarListToPeer()
             }
+        }
+        .onDisappear {
+            // إعادة ضبط مؤقت القفل التلقائي عند الخروج من التطبيق
+            UIApplication.shared.isIdleTimerDisabled = false
         }
         .onChange(of: sync.currentCount) { newCount in
             handleCountChange(newCount: newCount)
