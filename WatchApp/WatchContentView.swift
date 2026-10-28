@@ -49,9 +49,6 @@ struct WatchContentView: View {
     @State private var showCrownMenu: Bool = false
     @FocusState private var isCrownFocused: Bool
 
-    // تتبع وقت لمس الشاشة الفعلي باليد لتمييز النقر على الشاشة عن إيماءة الأصبعين (Double Tap)
-    @State private var lastScreenTouchTime: Date = .distantPast
-
     var body: some View {
         VStack(spacing: 6) {
             // 1. المنطقة العلوية (العنوان + الذكر + العداد) قابلة للمس المباشر
@@ -74,17 +71,16 @@ struct WatchContentView: View {
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
-            // لمس المنطقة العلوية للعد
+            // لمس المنطقة العلوية للعد (اهتزاز بنقرة واحدة عند لمس الشاشة)
             .onTapGesture {
                 incrementCount(playClickHaptic: true)
             }
 
             // 2. زر سَبِّح الأساسي (مخصص لاستقبال إيماءة Double Tap باليد)
             Button {
-                let isPhysicalScreenTouch = Date().timeIntervalSince(lastScreenTouchTime) < 0.4
-                // إذا تم التسبيح بإيماءة الأصبعين (Double Tap)، يصدر نظام الساعة اهتزازاً تلقائياً
-                // لذلك نمنع الاهتزاز الإضافي ليكون الاهتزاز مرة واحدة فقط بدقة
-                incrementCount(playClickHaptic: isPhysicalScreenTouch)
+                // عند التسبيح بحركة الأصبعين (Double Tap)، ساعة آبل تصدر هزة تلقائية واحدة من النظام؛
+                // لذلك نمنع تشغيل اهتزاز إضافي هنا لكي تكون هزة واحدة فقط مثل لمس الشاشة تماماً.
+                incrementCount(playClickHaptic: false)
             } label: {
                 Text("سَبِّح")
                     .font(.title3.bold())
@@ -92,12 +88,6 @@ struct WatchContentView: View {
                     .frame(height: 50)
             }
             .tint(.green)
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        lastScreenTouchTime = Date()
-                    }
-            )
             .enableDoubleTapGesture() // تفعيل إيماءة النقر المزدوج بالسبابة والإبهام
         }
         .padding(.horizontal, 8)
