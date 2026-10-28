@@ -1,6 +1,6 @@
 //
 //  WatchQiblaView.swift
-//  Fadhkuruni Watch App
+//  Fadhkuruni Watch App (Qibla Compass & Prayer Times)
 //
 
 import SwiftUI
@@ -8,7 +8,7 @@ import CoreLocation
 import WatchKit
 import Combine
 
-// MARK: - مدير حساب اتجاه القبلة والبوصلة
+// MARK: - مدير حساب اتجاه القبلة ومواقيت الصلاة للساعة
 public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     public static let shared = QiblaManager()
     
@@ -25,14 +25,18 @@ public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDe
     @Published public var statusMessage: String = "جاري تحديد الموقع..."
     @Published public var isHeadingAvailable: Bool = true
     @Published public var hasLocationFix: Bool = false
+    @Published public var cityName: String = ""
+    @Published public var prayerTimes: DailyPrayerTimes = DailyPrayerTimes(items: [], nextPrayer: nil, timeRemainingText: "")
     
     private var lastHapticTime: Date = .distantPast
+    private var userCoordinate: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 24.7136, longitude: 46.6753) // افتراضي
     
     public override init() {
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         locationManager.distanceFilter = 20.0
+        refreshPrayerTimes()
     }
     
     public func start() {
@@ -51,11 +55,16 @@ public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDe
         }
         
         locationManager.startUpdatingLocation()
+        refreshPrayerTimes()
     }
     
     public func stop() {
         locationManager.stopUpdatingHeading()
         locationManager.stopUpdatingLocation()
+    }
+    
+    public func refreshPrayerTimes() {
+        self.prayerTimes = PrayerTimesCalculator.calculate(for: userCoordinate)
     }
     
     // حساب زاوية القبلة الكروية العظمى (Great Circle Bearing)
@@ -91,12 +100,24 @@ public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDe
     
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
+        self.userCoordinate = location.coordinate
         let bearing = calculateBearing(from: location.coordinate)
+        
         DispatchQueue.main.async {
             self.qiblaBearing = bearing
             self.hasLocationFix = true
             self.statusMessage = "تم تحديد الموقع"
             self.refreshNeedle()
+            self.refreshPrayerTimes()
+        }
+        
+        // تحديد المدينة تلقائياً
+        CLGeocoder().reverseGeocodeLocation(location) { [weak self] placemarks, _ in
+            if let city = placemarks?.first?.locality ?? placemarks?.first?.administrativeArea {
+                DispatchQueue.main.async {
+                    self?.cityName = city
+                }
+            }
         }
     }
     
@@ -132,16 +153,19 @@ public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDe
     }
 }
 
-// MARK: - واجهة عرض اتجاه القبلة لساعة آبل
+// MARK: - واجهة عرض اتجاه القبلة ومواقيت الصلاة لساعة آبل
 public struct WatchQiblaView: View {
     @StateObject private var qibla = QiblaManager.shared
     @Environment(\.dismiss) private var dismiss
+    
+    // مؤقت لتحديث الوقت المتبقي كل دقيقة
+    @State private var timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
     
     public init() {}
     
     public var body: some View {
         ScrollView {
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 // زر الرجوع في أعلى الشاشة في وسطها
                 Button {
                     dismiss()
@@ -171,7 +195,7 @@ public struct WatchQiblaView: View {
                             qibla.isAligned ? Color.green.opacity(0.8) : Color.gray.opacity(0.3),
                             lineWidth: qibla.isAligned ? 3 : 2
                         )
-                        .frame(width: 130, height: 130)
+                        .frame(width: 126, height: 126)
                         .shadow(color: qibla.isAligned ? Color.green.opacity(0.6) : Color.clear, radius: 8)
                     
                     // الاتجاهات الأربعة الرئيسية على القرص
@@ -184,7 +208,7 @@ public struct WatchQiblaView: View {
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.secondary)
                     }
-                    .frame(height: 122)
+                    .frame(height: 118)
                     
                     HStack {
                         Text("غ")
@@ -195,12 +219,12 @@ public struct WatchQiblaView: View {
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.secondary)
                     }
-                    .frame(width: 122)
+                    .frame(width: 118)
                     
                     // الدائرة الداخلية المركزية
                     Circle()
                         .fill(qibla.isAligned ? Color.green.opacity(0.15) : Color.white.opacity(0.06))
-                        .frame(width: 54, height: 54)
+                        .frame(width: 52, height: 52)
                     
                     // مركز البوصلة: يعرض زاوية القبلة
                     VStack(spacing: 0) {
@@ -238,15 +262,15 @@ public struct WatchQiblaView: View {
                                     endPoint: .bottom
                                 )
                             )
-                            .frame(width: 3.5, height: 38)
+                            .frame(width: 3.5, height: 36)
                         
                         Spacer()
-                            .frame(height: 48)
+                            .frame(height: 46)
                     }
                     .rotationEffect(Angle(degrees: qibla.needleAngle))
                     .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.7), value: qibla.needleAngle)
                 }
-                .padding(.top, 4)
+                .padding(.top, 2)
                 
                 // 2. حالة التوجيه الحالية (توجيه يمين / يسار / اتجاه صحيح)
                 if qibla.isAligned {
@@ -285,30 +309,85 @@ public struct WatchQiblaView: View {
                     .clipShape(Capsule())
                 }
                 
-                // 3. معلومات البوصلة السريعة
-                HStack(spacing: 12) {
-                    VStack(alignment: .center, spacing: 1) {
-                        Text("اتجاه ساعتك")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                        Text("\(Int(qibla.heading))°")
-                            .font(.caption2.bold())
+                // 3. قسم مواقيت الصلاة
+                VStack(spacing: 6) {
+                    HStack {
+                        Image(systemName: "clock.badge.checkmark.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.teal)
+                        Text("مَوَاقِيتُ الصَّلَاةِ")
+                            .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.primary)
+                        Spacer()
+                        if !qibla.cityName.isEmpty {
+                            Text(qibla.cityName)
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.top, 6)
+                    
+                    // بطاقة الصلاة القادمة والوقت المتبقي
+                    if let next = qibla.prayerTimes.nextPrayer {
+                        HStack(spacing: 6) {
+                            Image(systemName: next.type.icon)
+                                .font(.caption)
+                                .foregroundColor(.green)
+                            
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("القادمة: \(next.type.rawValue)")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.primary)
+                                Text(qibla.prayerTimes.timeRemainingText)
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.green)
+                            }
+                            
+                            Spacer()
+                            
+                            Text(next.formattedTime)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.green)
+                        }
+                        .padding(7)
+                        .background(Color.green.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.green.opacity(0.35), lineWidth: 1)
+                        )
                     }
                     
-                    Divider()
-                        .frame(height: 16)
-                    
-                    VStack(alignment: .center, spacing: 1) {
-                        Text("مكة المكرمة")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                        Text("\(Int(qibla.qiblaBearing))°")
-                            .font(.caption2.bold())
-                            .foregroundColor(.green)
+                    // جدول الصلوات الخمس مع الشروق
+                    ForEach(qibla.prayerTimes.items) { item in
+                        HStack {
+                            Image(systemName: item.type.icon)
+                                .font(.system(size: 10))
+                                .foregroundColor(item.isNext ? .green : .secondary)
+                                .frame(width: 14)
+                            
+                            Text(item.type.rawValue)
+                                .font(.system(size: 11))
+                                .foregroundColor(item.isNext ? .green : .primary)
+                                .fontWeight(item.isNext ? .bold : .medium)
+                            
+                            Spacer()
+                            
+                            Text(item.formattedTime)
+                                .font(.system(size: 11))
+                                .foregroundColor(item.isNext ? .green : .secondary)
+                                .fontWeight(item.isNext ? .bold : .regular)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3.5)
+                        .background(
+                            item.isNext ? Color.green.opacity(0.10) : Color.white.opacity(0.04)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                     }
                 }
-                .padding(.top, 2)
+                .padding(.top, 4)
             }
             .padding(.horizontal, 4)
         }
@@ -320,6 +399,9 @@ public struct WatchQiblaView: View {
         }
         .onDisappear {
             qibla.stop()
+        }
+        .onReceive(timer) { _ in
+            qibla.refreshPrayerTimes()
         }
     }
 }
