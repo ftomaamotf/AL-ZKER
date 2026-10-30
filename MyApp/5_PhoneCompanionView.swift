@@ -1,3 +1,4 @@
+import WatchConnectivity
 //
 //  PhoneCompanionView.swift
 //  Fadhkuruni (iPhone Companion App View)
@@ -207,7 +208,11 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
     }
     
     public func requestAuthorization() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
+            Task { @MainActor in
+                IconBadgeManager.shared.update(count: WatchSyncService.shared.currentCount)
+            }
+        }
     }
     
     public func triggerTargetNotification(zekr: String, count: Int) {
@@ -217,10 +222,24 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
         let content = UNMutableNotificationContent()
         content.title = "فَاذْكُرُونِي - ما شاء الله! اكتمل الهدف 🎉"
         content.body = "تم بحمد الله إتمام \(count) مرة من: \(zekr)"
-        content.sound = .default
+        let soundId = UserDefaults.standard.object(forKey: "fadhkuruni_target_sound_id") as? Int ?? 1
+        if soundId > 0 {
+            let resolvedId = (1...7).contains(soundId) ? soundId : 1
+            do {
+                let directory = try FileManager.default.url(for: .libraryDirectory, in: .userDomainMask,
+                                                             appropriateFor: nil, create: true)
+                    .appendingPathComponent("Sounds", isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let name = "target-\(resolvedId).wav"
+                try SoundSynthesizer.makeWav(for: resolvedId).write(to: directory.appendingPathComponent(name), options: .atomic)
+                content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: name))
+            } catch {
+                content.sound = .default
+            }
+        }
         
         let request = UNNotificationRequest(
-            identifier: "fadhkuruni_target_\(UUID().uuidString)",
+            identifier: "fadhkuruni_target_completion",
             content: content,
             trigger: nil // يطلق فوراً ليضيء شاشة القفل ويصدر التنبيه
         )
@@ -229,7 +248,7 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
     }
     
     public func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .sound, .list])
+        completionHandler([.banner, .list])
     }
 }
 
@@ -257,6 +276,8 @@ public struct TargetSoundItem: Identifiable, Hashable {
 }
 
 public struct PhoneCompanionView: View {
+    @ObservedObject private var watchAccess = WatchPurchaseAccess.shared
+    @AppStorage(TapFeedbackPreference.soundEnabledKey) private var isTapSoundEnabled = true
     @ObservedObject private var sync = WatchSyncService.shared
     @State private var selectedTab = 0
     
@@ -269,7 +290,11 @@ public struct PhoneCompanionView: View {
     @State private var editZekrTitle = ""
     @State private var editZekrTarget = 33
     
+    @State private var pendingDeletion: [ZekrItem] = []
+    @State private var showDeleteConfirmation = false
     @State private var showResetAlert = false
+    @State private var showCounterResetConfirmation = false
+    @State private var pendingCounterReset: ZekrItem?
     @AppStorage("fadhkuruni_buttons_locked") private var isButtonsLocked = false
     
     // صوت التنبيه عند وصول الهدف
@@ -298,11 +323,30 @@ public struct PhoneCompanionView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             
-            // شريط التبويبات السفلي المخصص (يختفي بالكامل عند تفعيل القفل لتصبح الشاشة بيضاء ونقية للتسبيح)
-            if !isButtonsLocked {
-                customBottomTabBar
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            // إخفاء التبويبات عند القفل مع حجز مساحتها لإبقاء أدوات التحكم ثابتة.
+            customBottomTabBar
+                .opacity(isButtonsLocked ? 0 : 1)
+                .allowsHitTesting(!isButtonsLocked)
+                .accessibilityHidden(isButtonsLocked)
+                .overlay {
+                    if isButtonsLocked {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture { incrementPhoneCount() }
+                            .accessibilityHidden(true)
+                    }
+                }
+        }
+        .alert("تصفير عدّاد الذكر؟", isPresented: $showCounterResetConfirmation, presenting: pendingCounterReset) { item in
+            Button("إلغاء", role: .cancel) { pendingCounterReset = nil }
+            Button("قبول", role: .destructive) {
+                if sync.currentZekr == item.title { hasAlertedForCurrentTarget = false }
+                sync.resetZekrCount(for: item)
+                pendingCounterReset = nil
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
             }
+        } message: { item in
+            Text("سيُصفّر عدّاد «\(item.title)» فقط، وسيبقى الذكر والهدف محفوظين. هل تريد المتابعة؟")
         }
         .preferredColorScheme(isButtonsLocked ? .light : nil)
         .background(
@@ -324,39 +368,31 @@ public struct PhoneCompanionView: View {
             UIApplication.shared.isIdleTimerDisabled = true
             
             // تهيئة الصوت والإشعارات بشكل غير تزامني لتفادي أي تجميد للشاشة عند بدء التشغيل
-            DispatchQueue.global(qos: .userInitiated).async {
-                SoundManager.shared.configureAudioSession()
-                NotificationManager.shared.requestAuthorization()
-            }
+            NotificationManager.shared.requestAuthorization()
             
             // إرسال المزامنة بعد اكتمال تحميل الواجهة بسلاسة لتفادي أي تعارض في الخيوط
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                sync.sendSyncPayload(count: sync.currentCount, zekr: sync.currentZekr, target: sync.target)
-                sync.syncAzkarListToPeer()
-            }
+
         }
-        .onChange(of: scenePhase) { newPhase in
+        .onChange(of: scenePhase) { _, newPhase in
+            UIApplication.shared.isIdleTimerDisabled = (newPhase == .active)
             if newPhase == .active {
                 sync.activateSession()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    sync.sendSyncPayload(count: sync.currentCount, zekr: sync.currentZekr, target: sync.target)
-                    sync.syncAzkarListToPeer()
-                }
+
             }
         }
         .onDisappear {
             // إعادة ضبط مؤقت القفل التلقائي عند الخروج من التطبيق
             UIApplication.shared.isIdleTimerDisabled = false
         }
-        .onChange(of: sync.currentCount) { newCount in
+        .onChange(of: sync.currentCount) { _, newCount in
             handleCountChange(newCount: newCount)
         }
-        .onChange(of: sync.target) { newTarget in
+        .onChange(of: sync.target) { _, newTarget in
             if sync.currentCount < newTarget {
                 hasAlertedForCurrentTarget = false
             }
         }
-        .onChange(of: sync.currentZekr) { _ in
+        .onChange(of: sync.currentZekr) { _, _ in
             hasAlertedForCurrentTarget = (sync.currentCount >= sync.target && sync.target > 0)
         }
     }
@@ -367,7 +403,7 @@ public struct PhoneCompanionView: View {
             ZStack(alignment: .bottom) {
                 // 1. كامل مساحة شاشة الآيفون: تصبح كلها مساحة تسبيح تفاعلية ومؤمّنة 100%
                 VStack(spacing: 0) {
-                    Spacer(minLength: isButtonsLocked ? 20 : 16)
+                    Spacer(minLength: 16)
                     
                     // نوع الذكر الحالي
                     VStack(spacing: 6) {
@@ -398,7 +434,7 @@ public struct PhoneCompanionView: View {
                     }
                     .foregroundColor(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
                     
-                    Spacer(minLength: isButtonsLocked ? 40 : 84)
+                    Spacer(minLength: 84)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
@@ -426,13 +462,10 @@ public struct PhoneCompanionView: View {
                         }
                 )
                 
-                // 2. الشريط السفلي: خيارات التحكم وقفل الأخطاء (يختفي تماماً عند تفعيل القفل)
-                if !isButtonsLocked {
-                    bottomControlBar
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 6)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+                // يبقى زر القفل في موضعه؛ تُخفى أدوات العد الأخرى وتتعطل عند القفل.
+                bottomControlBar
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 6)
             }
             .background(
                 (isButtonsLocked ? Color.white : Color(UIColor.systemBackground))
@@ -443,28 +476,16 @@ public struct PhoneCompanionView: View {
             .toolbarBackground(isButtonsLocked ? Color.white : Color.clear, for: .navigationBar)
             .toolbarBackground(isButtonsLocked ? .visible : .automatic, for: .navigationBar)
             .toolbar {
-                if isButtonsLocked {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                isButtonsLocked = false
-                            }
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        }) {
-                            HStack(spacing: 5) {
-                                Image(systemName: "lock.open.fill")
-                                Text("فتح القفل")
-                            }
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.red)
-                            .clipShape(Capsule())
-                            .shadow(color: Color.red.opacity(0.3), radius: 4, y: 2)
-                        }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    NavigationLink { PurchasedWatchSettingsGate { WatchGuideView() } } label: {
+                        Image(systemName: "applewatch")
+                            .accessibilityLabel("فاذكروني على الساعة — صور وطريقة الاستخدام")
                     }
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    SupportLink().labelStyle(.iconOnly)
+                }
+
             }
         }
     }
@@ -487,42 +508,44 @@ public struct PhoneCompanionView: View {
                 .foregroundColor(.green)
                 .contentTransition(.numericText())
             
-            Text("الهدف: \(sync.target)")
-                .font(.title3.weight(.medium))
-                .foregroundColor(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
-            
-            // مؤشر اكتمال الهدف
-            if sync.currentCount >= sync.target && sync.target > 0 {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.seal.fill")
-                    Text("ما شاء الله! اكتمل الهدف")
-                        .font(.caption.bold())
+            Group {
+                Text("الهدف: \(sync.target)")
+                    .font(.title3.weight(.medium))
+                    .foregroundColor(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
+
+                // مؤشر اكتمال الهدف
+                if sync.currentCount >= sync.target && sync.target > 0 {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.seal.fill")
+                        Text("ما شاء الله! اكتمل الهدف")
+                            .font(.caption.bold())
+                    }
+                    .foregroundColor(.green)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 5)
+                    .background(Color.green.opacity(0.15))
+                    .clipShape(Capsule())
+                    .padding(.top, 2)
                 }
-                .foregroundColor(.green)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 5)
-                .background(Color.green.opacity(0.15))
-                .clipShape(Capsule())
-                .padding(.top, 2)
+
             }
-            
             // مؤشر قفل الأخطاء
-            if isButtonsLocked {
-                HStack(spacing: 6) {
-                    Image(systemName: "lock.shield.fill")
-                        .font(.caption2)
-                    Text("قفل الأخطاء مفعّل: المس أي مكان للعد")
-                        .font(.caption.bold())
-                }
+            HStack(spacing: 6) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.caption2)
+                Text("قفل العدّاد مفعّل: المس أي مكان للعدّ")
+                    .font(.caption.bold())
+            }
                 .foregroundColor(.red)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 5)
                 .background(Color.red.opacity(0.12))
                 .clipShape(Capsule())
                 .padding(.top, 4)
-            }
+                .opacity(isButtonsLocked ? 1 : 0)
+                .accessibilityHidden(!isButtonsLocked)
         }
-        .padding(.vertical, isButtonsLocked ? 36 : 24)
+        .padding(.vertical, 24)
         .frame(maxWidth: .infinity)
         .background(counterCardBackground)
         .padding(.horizontal, 16)
@@ -531,93 +554,74 @@ public struct PhoneCompanionView: View {
     // MARK: - الشريط السفلي لخيارات التحكم وقفل الأخطاء
     private var bottomControlBar: some View {
         HStack(spacing: 14) {
-            // 1. زر الزائد (+)
-            Button(action: {
-                incrementPhoneCount()
-            }) {
-                VStack(spacing: 4) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 52, height: 52)
-                        .background(Color.green)
-                        .clipShape(Circle())
-                    
-                    Text("زيادة")
-                        .font(.caption2.bold())
-                        .foregroundColor(.green)
+            Group {
+                Button { incrementPhoneCount() } label: {
+                    counterControlLabel(title: "زيادة", symbol: "plus", tint: .green, isPrimary: true)
                 }
+                .frame(maxWidth: .infinity)
+
+                Button {
+                    if sync.currentCount > 0 {
+                        sync.sendSyncPayload(count: sync.currentCount - 1, zekr: sync.currentZekr, target: sync.target)
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    }
+                } label: {
+                    counterControlLabel(title: "ناقص", symbol: "minus", tint: .red)
+                }
+                .frame(maxWidth: .infinity)
+
+                Button { resetPhoneCount() } label: {
+                    counterControlLabel(title: "تصفير", symbol: "arrow.counterclockwise", tint: .orange)
+                }
+                .frame(maxWidth: .infinity)
             }
-            
-            // 2. زر الناقص (-)
-            Button(action: {
-                if sync.currentCount > 0 {
-                    sync.sendSyncPayload(count: sync.currentCount - 1, zekr: sync.currentZekr, target: sync.target)
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                }
-            }) {
-                VStack(spacing: 4) {
-                    Image(systemName: "minus")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.red)
-                        .frame(width: 52, height: 52)
-                        .background(Color.red.opacity(0.12))
-                        .clipShape(Circle())
-                    
-                    Text("ناقص")
-                        .font(.caption2.bold())
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            // 3. زر تصفير العداد (↺)
-            Button(action: {
-                resetPhoneCount()
-            }) {
-                VStack(spacing: 4) {
-                    Image(systemName: "arrow.counterclockwise")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.orange)
-                        .frame(width: 52, height: 52)
-                        .background(Color.orange.opacity(0.15))
-                        .clipShape(Circle())
-                    
-                    Text("تصفير")
-                        .font(.caption2.bold())
-                        .foregroundColor(.orange)
-                }
-            }
-            
-            // 4. زر قفل الأخطاء (يخفي جميع الأزرار ويجعل الشاشة بيضاء نقية للتسبيح)
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    isButtonsLocked = true
+            .opacity(isButtonsLocked ? 0 : 1)
+            .allowsHitTesting(!isButtonsLocked)
+            .accessibilityHidden(isButtonsLocked)
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isButtonsLocked.toggle()
                 }
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            }) {
-                VStack(spacing: 4) {
-                    Image(systemName: "lock.shield.fill")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.red)
-                        .frame(width: 52, height: 52)
-                        .background(Color.red.opacity(0.14))
-                        .clipShape(Circle())
-                    
-                    Text("قفل الأخطاء")
-                        .font(.caption2.bold())
-                        .foregroundColor(.red)
-                }
+            } label: {
+                counterControlLabel(title: isButtonsLocked ? "فتح قفل العدّاد" : "قفل العدّاد",
+                                    symbol: isButtonsLocked ? "lock.open.fill" : "lock.shield.fill",
+                                    tint: .red)
             }
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel(isButtonsLocked ? "فتح قفل العدّاد" : "قفل العدّاد")
+            .accessibilityHint(isButtonsLocked ? "إظهار أدوات التحكم" : "إخفاء أدوات التحكم مع إبقاء زر فتح قفل العدّاد في مكانه")
         }
+        .buttonStyle(.plain)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
-        .background(
+        .background {
             RoundedRectangle(cornerRadius: 24)
                 .fill(Color(UIColor.secondarySystemBackground))
                 .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
-        )
+                .opacity(isButtonsLocked ? 0 : 1)
+        }
     }
-    
+
+    private func counterControlLabel(title: String, symbol: String, tint: Color, isPrimary: Bool = false) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: symbol)
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(isPrimary ? Color.white : tint)
+                .frame(width: 52, height: 52)
+                .background(isPrimary ? tint : tint.opacity(0.14), in: Circle())
+            Text(title)
+                .font(.caption2.bold())
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(minHeight: 16)
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+    }
+
     // MARK: - شريط التبويبات السفلي (العداد - الأذكار والأهداف - إعدادات الساعة)
     private var customBottomTabBar: some View {
         HStack(spacing: 0) {
@@ -649,6 +653,7 @@ public struct PhoneCompanionView: View {
                     Text("الأذكار والأهداف")
                         .font(.system(size: 11, weight: selectedTab == 1 ? .bold : .medium))
                 }
+                .accessibilityLabel("الأذكار والأهداف")
                 .foregroundColor(selectedTab == 1 ? .green : .secondary)
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
@@ -666,23 +671,25 @@ public struct PhoneCompanionView: View {
                     Text("اتجاه القبلة")
                         .font(.system(size: 11, weight: selectedTab == 2 ? .bold : .medium))
                 }
+                .accessibilityLabel("اتجاه القبلة")
                 .foregroundColor(selectedTab == 2 ? .green : .secondary)
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             
-            // 4. زر إعدادات الساعة
+            // 4. زر الإعدادات
             Button {
                 selectedTab = 3
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             } label: {
                 VStack(spacing: 4) {
-                    Image(systemName: "applewatch")
+                    Image(systemName: "gearshape.fill")
                         .font(.system(size: 20, weight: selectedTab == 3 ? .bold : .regular))
-                    Text("إعدادات الساعة")
+                    Text("الإعدادات")
                         .font(.system(size: 11, weight: selectedTab == 3 ? .bold : .medium))
                 }
+                .accessibilityLabel("الإعدادات")
                 .foregroundColor(selectedTab == 3 ? .green : .secondary)
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
@@ -701,15 +708,18 @@ public struct PhoneCompanionView: View {
     }
     
     private func incrementPhoneCount() {
-        let next = sync.currentCount + 1
-        sync.sendSyncPayload(count: next, zekr: sync.currentZekr, target: sync.target)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        guard let reachedGoal = sync.incrementCurrentZekr() else { return }
+        TapFeedback.shared.play(goalReached: reachedGoal)
     }
     
     private func resetPhoneCount() {
-        hasAlertedForCurrentTarget = false
-        sync.resetCurrentZekrCount()
-        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        guard let item = sync.azkarList.first(where: { $0.title == sync.currentZekr }) else { return }
+        requestCounterReset(item)
+    }
+
+    private func requestCounterReset(_ item: ZekrItem) {
+        pendingCounterReset = item
+        showCounterResetConfirmation = true
     }
     
     // فحص اكتمال الهدف وإطلاق التنبيه الصوتي والاهتزاز
@@ -718,7 +728,7 @@ public struct PhoneCompanionView: View {
             hasAlertedForCurrentTarget = false
         } else if newCount == sync.target && !hasAlertedForCurrentTarget {
             hasAlertedForCurrentTarget = true
-            playTargetAlert()
+            // WatchSyncService owns the completion sound and notification.
         }
     }
     
@@ -754,19 +764,9 @@ public struct PhoneCompanionView: View {
                     }
                 }
                 
-                Section(header: Text("قائمة الأذكار (اضغط للاختيار، أو اسحب للحذف)")) {
+                Section(header: Text("قائمة الأذكار — الحذف للأذكار المضافة فقط")) {
                     ForEach(sync.azkarList) { item in
                         HStack(spacing: 12) {
-                            if sync.currentZekr == item.title {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                    .font(.title3)
-                            } else {
-                                Image(systemName: "circle")
-                                    .foregroundColor(.gray.opacity(0.4))
-                                    .font(.title3)
-                            }
-                            
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(item.title)
                                     .font(.headline)
@@ -800,6 +800,7 @@ public struct PhoneCompanionView: View {
                             }
                             .buttonStyle(BorderlessButtonStyle())
                         }
+                        .deleteDisabled(item.isBuiltIn)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             sync.selectZekr(item)
@@ -810,8 +811,7 @@ public struct PhoneCompanionView: View {
                         }
                         .swipeActions(edge: .leading, allowsFullSwipe: false) {
                             Button {
-                                sync.resetZekrCount(for: item)
-                                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                                requestCounterReset(item)
                             } label: {
                                 Label("تصفير العداد", systemImage: "arrow.counterclockwise")
                             }
@@ -819,7 +819,8 @@ public struct PhoneCompanionView: View {
                         }
                     }
                     .onDelete { offsets in
-                        sync.deleteZekr(at: offsets)
+                        pendingDeletion = offsets.map { sync.azkarList[$0] }.filter { !$0.isBuiltIn }
+                        showDeleteConfirmation = !pendingDeletion.isEmpty
                     }
                 }
                 
@@ -914,6 +915,13 @@ public struct PhoneCompanionView: View {
                 }
                 .presentationDetents([.medium])
             }
+            .confirmationDialog("حذف الأذكار المحددة وعداداتها؟", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+                Button("حذف", role: .destructive) {
+                    for item in pendingDeletion { sync.deleteZekr(item: item) }
+                    pendingDeletion = []
+                }
+                Button("إلغاء", role: .cancel) { pendingDeletion = [] }
+            }
             .alert("استعادة الأذكار الافتراضية", isPresented: $showResetAlert) {
                 Button("إلغاء", role: .cancel) {}
                 Button("استعادة", role: .destructive) {
@@ -925,11 +933,153 @@ public struct PhoneCompanionView: View {
         }
     }
     
-    // MARK: - Settings Tab (إعدادات ساعة آبل ونقل الخيارات إليها)
+    // MARK: - Settings
     private var settingsTabView: some View {
         NavigationStack {
             Form {
-                // قسم إعدادات وخيارات ساعة آبل
+                Section {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("فَاذْكُرُونِي").font(.caption).foregroundStyle(.green)
+                        Text("تجربتك، كما تحبّها").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    .listRowBackground(Color.clear)
+                }
+                Section {
+                    Label("عدد الذكر على أيقونة التطبيق", systemImage: "app.badge")
+                    Text("تعرض الشارة آخر عدد محفوظ للذكر الحالي، وتختفي عند الصفر. اسمح بالإشعارات والشارات من إعدادات الآيفون. يتحدث عدد الساعة عند وصول المزامنة إلى الآيفون.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Section("على الآيفون") {
+                    Toggle(isOn: $isTapSoundEnabled) {
+                        settingsLabel("صوت الضغطات", subtitle: "نقرة خفيفة", icon: "speaker.wave.2")
+                    }
+                    .tint(.green)
+                    .onChange(of: isTapSoundEnabled) { _, enabled in
+                        if enabled {
+                            UserDefaults.standard.set(TapFeedbackMode.sound.rawValue, forKey: TapFeedbackPreference.storageKey)
+                            TapFeedback.shared.prepare()
+                        }
+                        else { TapFeedback.shared.stop() }
+                    }
+                    NavigationLink { TapFeedbackSettingsView() } label: {
+                        settingsLabel("تنبيه الضغطات", subtitle: "الصوت والاهتزاز", icon: "hand.tap")
+                    }
+                    NavigationLink {
+                        Form { phoneTargetSoundSettings }
+                            .navigationTitle("تنبيهات الأهداف")
+                    } label: {
+                        settingsLabel("تنبيهات الأهداف", subtitle: "تنبيه إكمال الذكر على الآيفون", icon: "bell.badge")
+                    }
+                }
+                Section {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "applewatch")
+                                .font(.title2).foregroundStyle(.green)
+                                .frame(width: 42, height: 42)
+                                .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                            Text("رفيق الساعة").font(.title3.weight(.semibold))
+                            Spacer()
+                            Label(watchAccess.isPurchased ? "مفعّل" : "مقفل",
+                                  systemImage: watchAccess.isPurchased ? "checkmark.seal.fill" : "lock.fill")
+                                .font(.caption).foregroundStyle(.green)
+                        }
+                        if watchAccess.isChecking {
+                            ProgressView("التحقق من شراء نسخة الساعة…")
+                        } else if watchAccess.isPurchased {
+                            Text("نسخة الساعة مفعّلة. جميع خياراتها متاحة.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        } else {
+                            Text("أذكارك وأهدافك على معصمك. تُفتح جميع خيارات الساعة بعد شراء نسختها.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            NavigationLink { WatchPurchaseView() } label: {
+                                Text("فتح نسخة الساعة").frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent).tint(.green)
+                            Button("استعادة الشراء") { Task { await watchAccess.restore() } }
+                                .frame(maxWidth: .infinity)
+                                .disabled(watchAccess.isBusy)
+                            if let message = watchAccess.message {
+                                Text(message).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }.padding(.vertical, 8)
+                    watchSettingsLink("الأذكار والأهداف", subtitle: "الذكر المعروض، الهدف وتصفير العدّاد", icon: "list.bullet") {
+                        Form { watchAzkarSettings }.navigationTitle("الأذكار والأهداف")
+                    }
+                    watchSettingsLink("طرق العدّ والإيماءات", subtitle: "اللمس والنقر المزدوج", icon: "hand.tap") {
+                        Form { watchGestureSettings }.navigationTitle("طرق العدّ والإيماءات")
+                    }
+                    watchSettingsLink("صوت الساعة واهتزازها", icon: "waveform") {
+                        Form {
+                            Section("على الساعة") {
+                                Label("تنبيه الضغطات", systemImage: "speaker.wave.2")
+                                Text("افتح إعدادات تنبيه الضغطات داخل تطبيق الساعة لاختيار النقرة الخفيفة أو الاهتزاز أو كتم التنبيه. يُحفظ اختيار الساعة بصورة مستقلة عن الآيفون.")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }.navigationTitle("صوت الساعة واهتزازها")
+                    }
+                    watchSettingsLink("الاتصال والمزامنة", icon: "arrow.triangle.2.circlepath") {
+                        Form { watchSyncSettings }.navigationTitle("الاتصال والمزامنة")
+                    }
+                    watchSettingsLink("دليل الساعة", icon: "book") { WatchGuideView() }
+                } header: {
+                    Text("تجربة الساعة")
+                } footer: {
+                    Text("جميع ميزات الآيفون مجانية. نسخة الساعة تُفتح بشراء دائم لمرة واحدة، دون تجديد تلقائي.")
+                }
+                Section("الحساب والمساعدة") {
+                    NavigationLink { SubscriptionView() } label: {
+                        settingsLabel("ميزات الآيفون", subtitle: "مجانية بالكامل، دون اشتراك", icon: "sparkles")
+                    }
+                    NavigationLink {
+                        Form {
+                            Section("الدعم والمساعدة") { SupportLink() }
+                            Section("الخصوصية") {
+                                NavigationLink("سياسة الخصوصية") { PrivacyPolicyView() }
+                            }
+                            aboutSettings
+                        }.navigationTitle("الدعم والخصوصية")
+                    } label: {
+                        settingsLabel("الدعم والخصوصية", subtitle: "المساعدة وحول التطبيق", icon: "checkmark.shield")
+                    }
+                }
+            }
+            .navigationTitle("الإعدادات")
+            .tint(.green)
+            .task { await watchAccess.refresh() }
+        }
+    }
+
+    private func settingsLabel(_ title: String, subtitle: String? = nil, icon: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).foregroundStyle(.green)
+                .frame(width: 32, height: 32)
+                .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                if let subtitle { Text(subtitle).font(.caption).foregroundStyle(.secondary) }
+            }
+        }.padding(.vertical, 2)
+    }
+
+    private func watchSettingsLink<Destination: View>(_ title: String, subtitle: String? = nil,
+                                                    icon: String, @ViewBuilder destination: () -> Destination) -> some View {
+        NavigationLink {
+            PurchasedWatchSettingsGate { destination() }
+        } label: {
+            HStack {
+                settingsLabel(title, subtitle: subtitle, icon: icon)
+                Spacer(minLength: 4)
+                if !watchAccess.isPurchased {
+                    Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
+                        .accessibilityLabel("يتطلب شراء نسخة الساعة")
+                }
+            }
+        }
+    }
+
+    private var watchAzkarSettings: some View {
                 Section(header: Text("إعدادات ساعة آبل (Apple Watch)")) {
                     // اختيار نوع الذكر للساعة
                     Picker("الذكر المعروض على الساعة", selection: Binding(
@@ -989,64 +1139,65 @@ public struct PhoneCompanionView: View {
                     }
                     
                     Button(role: .destructive) {
-                        hasAlertedForCurrentTarget = false
-                        sync.resetCurrentZekrCount()
-                        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                        resetPhoneCount()
                     } label: {
                         Label("تصفير عدّاد الذكر الحالي فقط", systemImage: "arrow.counterclockwise")
                     }
                 }
                 
-                // قسم صوت التنبيه عند اكتمال الهدف في الذكر
-                Section(header: Text("صوت التنبيه عند وصول الهدف"), footer: Text("تعمل النغمة حتى لو كان الآيفون في الوضع الصامت (Silent Mode). تأكد فقط من رفع مستوى صوت الوسائط.")) {
-                    Toggle(isOn: $isTargetSoundEnabled) {
-                        HStack(spacing: 12) {
-                            Image(systemName: isTargetSoundEnabled ? "bell.badge.fill" : "bell.slash.fill")
-                                .font(.title3)
-                                .foregroundColor(isTargetSoundEnabled ? .green : .secondary)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("تفعيل صوت إكمال الهدف")
-                                    .fontWeight(.medium)
-                                Text("يصدر الآيفون صوتاً عند وصولك للهدف سواءً سبحت من الساعة أو الآيفون")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                    .tint(.green)
-                    
-                    if isTargetSoundEnabled {
-                        Picker("نغمة التنبيه", selection: $selectedTargetSoundId) {
-                            ForEach(TargetSoundItem.defaultSounds) { sound in
-                                HStack {
-                                    Image(systemName: sound.icon)
-                                    Text(sound.name)
+    }
+    @ViewBuilder
+    private var phoneTargetSoundSettings: some View {
+                    Section(header: Text("تنبيهات أهداف الآيفون"), footer: Text("أثناء فتح التطبيق تُشغّل النغمة المختارة. في الخلفية يصدر إشعار عند وصول المزامنة، وفق أذونات الإشعارات ووضع الصامت والتركيز. قد يتأخر وصوله.")) {
+                        Toggle(isOn: $isTargetSoundEnabled) {
+                            HStack(spacing: 12) {
+                                Image(systemName: isTargetSoundEnabled ? "bell.badge.fill" : "bell.slash.fill")
+                                    .font(.title3)
+                                    .foregroundColor(isTargetSoundEnabled ? .green : .secondary)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("تفعيل صوت إكمال الهدف")
+                                        .fontWeight(.medium)
+                                    Text("نغمة إكمال الهدف على الآيفون")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
                                 }
-                                .tag(sound.id)
                             }
                         }
-                        .pickerStyle(.navigationLink)
-                        .onChange(of: selectedTargetSoundId) { newId in
-                            TargetSoundItem.play(soundId: newId)
-                        }
+                        .tint(.green)
                         
-                        Button(action: {
-                            TargetSoundItem.play(soundId: selectedTargetSoundId)
-                        }) {
-                            HStack {
-                                Label("استماع وتجربة النغمة المحددة", systemImage: "play.circle.fill")
-                                    .foregroundColor(.green)
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Image(systemName: "speaker.wave.2.fill")
-                                    .foregroundColor(.secondary)
+                        if isTargetSoundEnabled {
+                            Picker("نغمة التنبيه", selection: $selectedTargetSoundId) {
+                                ForEach(TargetSoundItem.defaultSounds) { sound in
+                                    HStack {
+                                        Image(systemName: sound.icon)
+                                        Text(sound.name)
+                                    }
+                                    .tag(sound.id)
+                                }
+                            }
+                            .pickerStyle(.navigationLink)
+                            .onChange(of: selectedTargetSoundId) { _, newId in
+                                TargetSoundItem.play(soundId: newId)
+                            }
+
+                            Button(action: {
+                                TargetSoundItem.play(soundId: selectedTargetSoundId)
+                            }) {
+                                HStack {
+                                    Label("استماع وتجربة النغمة المحددة", systemImage: "play.circle.fill")
+                                        .foregroundColor(.green)
+                                        .fontWeight(.medium)
+                                    Spacer()
+                                    Image(systemName: "speaker.wave.2.fill")
+                                        .foregroundColor(.secondary)
+                                }
                             }
                         }
                     }
-                }
-                
-                // إيماءات ساعة آبل
+
+    }
+    private var watchGestureSettings: some View {
                 Section(header: Text("إيماءات ساعة آبل (Apple Watch Gestures)")) {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
@@ -1075,16 +1226,17 @@ public struct PhoneCompanionView: View {
                     .padding(.vertical, 4)
                 }
                 
-                // حالة المزامنة
+    }
+    private var watchSyncSettings: some View {
                 Section(header: Text("حالة المزامنة مع الساعة")) {
                     HStack {
                         Text("حالة الاتصال")
                         Spacer()
                         HStack(spacing: 6) {
                             Circle()
-                                .fill(Color.green)
+                                .fill(WCSession.isSupported() && WCSession.default.isReachable ? Color.green : Color.orange)
                                 .frame(width: 8, height: 8)
-                            Text("متصلة ومتزامنة لحظياً")
+                            Text(WCSession.isSupported() && WCSession.default.isReachable ? "متاحة الآن" : "تتم المزامنة عند توفر الاتصال")
                                 .foregroundColor(.green)
                                 .font(.subheadline)
                         }
@@ -1098,7 +1250,8 @@ public struct PhoneCompanionView: View {
                     }
                 }
                 
-                // حول التطبيق
+    }
+    private var aboutSettings: some View {
                 Section(header: Text("حول التطبيق")) {
                     HStack {
                         Text("اسم البرنامج")
@@ -1121,8 +1274,26 @@ public struct PhoneCompanionView: View {
                             .foregroundColor(.gray)
                     }
                 }
+    }
+}
+
+/// Observe the verified entitlement here as well so a pushed screen closes access
+/// immediately after a revocation or an unsuccessful entitlement refresh.
+private struct PurchasedWatchSettingsGate<Content: View>: View {
+    @ObservedObject private var access = WatchPurchaseAccess.shared
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) { self.content = content() }
+
+    var body: some View {
+        Group {
+            if access.isChecking {
+                ProgressView("التحقق من شراء نسخة الساعة…")
+            } else if access.isPurchased {
+                content
+            } else {
+                WatchPurchaseView()
             }
-            .navigationTitle("إعدادات الساعة")
         }
     }
 }

@@ -26,6 +26,12 @@ public final class PhoneQiblaManager: NSObject, ObservableObject, CLLocationMana
     @Published public var statusMessage: String = "جاري تحديد الموقع..."
     @Published public var authorizationStatus: CLAuthorizationStatus = .notDetermined
     
+    @Published public var hasLocationFix = false
+    @Published public var hasHeadingFix = false
+    @Published public var isHeadingAvailable = true
+    private var isUpdating = false
+    public var isReady: Bool { hasLocationFix && hasHeadingFix && isHeadingAvailable }
+
     private var lastHapticTime: Date = .distantPast
     
     public override init() {
@@ -36,6 +42,22 @@ public final class PhoneQiblaManager: NSObject, ObservableObject, CLLocationMana
     }
     
     public func start() {
+        isUpdating = true
+        authorizationStatus = locationManager.authorizationStatus
+        hasLocationFix = false
+        hasHeadingFix = false
+        isAligned = false
+        statusMessage = "جاري تحديد الموقع واتجاه البوصلة..."
+        isHeadingAvailable = CLLocationManager.headingAvailable()
+        guard CLLocationManager.locationServicesEnabled() else {
+            statusMessage = "خدمات الموقع متوقفة؛ فعّلها من إعدادات الجهاز"
+            return
+        }
+        guard locationManager.authorizationStatus != .denied,
+              locationManager.authorizationStatus != .restricted else {
+            statusMessage = "يرجى السماح بالموقع من إعدادات الجهاز لعرض اتجاه القبلة"
+            return
+        }
         authorizationStatus = locationManager.authorizationStatus
         if authorizationStatus == .notDetermined {
             locationManager.requestWhenInUseAuthorization()
@@ -52,6 +74,10 @@ public final class PhoneQiblaManager: NSObject, ObservableObject, CLLocationMana
     }
     
     public func stop() {
+        isUpdating = false
+        hasLocationFix = false
+        hasHeadingFix = false
+        isAligned = false
         locationManager.stopUpdatingHeading()
         locationManager.stopUpdatingLocation()
     }
@@ -76,6 +102,7 @@ public final class PhoneQiblaManager: NSObject, ObservableObject, CLLocationMana
     
     // MARK: - CLLocationManagerDelegate
     public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        guard isUpdating else { return }
         authorizationStatus = manager.authorizationStatus
         if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
             manager.startUpdatingLocation()
@@ -83,18 +110,27 @@ public final class PhoneQiblaManager: NSObject, ObservableObject, CLLocationMana
                 manager.startUpdatingHeading()
             }
         } else if authorizationStatus == .denied || authorizationStatus == .restricted {
-            statusMessage = "يرجى تفعيل خدمة الموقع لتحديد اتجاه القبلة"
+            hasLocationFix = false
+            hasHeadingFix = false
+            isAligned = false
+            manager.stopUpdatingLocation()
+            manager.stopUpdatingHeading()
+            statusMessage = "يرجى السماح بالموقع من إعدادات الجهاز لعرض اتجاه القبلة"
         }
     }
     
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
+        guard isUpdating, let location = locations.last,
+              location.horizontalAccuracy >= 0, location.horizontalAccuracy <= 1000,
+              abs(location.timestamp.timeIntervalSinceNow) < 60 else { return }
         let bearing = calculateBearing(from: location.coordinate)
         
         let meccaLoc = CLLocation(latitude: meccaLatitude, longitude: meccaLongitude)
         let distanceKm = location.distance(from: meccaLoc) / 1000.0
         
         DispatchQueue.main.async {
+            guard self.isUpdating else { return }
+            self.hasLocationFix = true
             self.qiblaBearing = bearing
             self.distanceToMeccaKm = distanceKm
             self.statusMessage = "تم تحديد الموقع"
@@ -103,16 +139,38 @@ public final class PhoneQiblaManager: NSObject, ObservableObject, CLLocationMana
     }
     
     public func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
-        let currentHeading = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
-        guard currentHeading >= 0 else { return }
+        guard isUpdating else { return }
+        guard newHeading.headingAccuracy >= 0,
+              abs(newHeading.timestamp.timeIntervalSinceNow) < 60,
+              newHeading.trueHeading >= 0 else {
+            hasHeadingFix = false
+            isAligned = false
+            statusMessage = "تعذر قراءة البوصلة؛ ابتعد عن المعادن وأعد المحاولة"
+            return
+        }
+        let currentHeading = newHeading.trueHeading
         
         DispatchQueue.main.async {
+            guard self.isUpdating else { return }
+            self.hasHeadingFix = true
             self.heading = currentHeading
             self.refreshNeedle()
         }
     }
     
+    public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        guard isUpdating else { return }
+        hasLocationFix = false
+        isAligned = false
+        statusMessage = "تعذر تحديد الموقع؛ تأكد من الأذونات وحاول مجددًا"
+    }
+
     private func refreshNeedle() {
+        guard isReady else {
+            isAligned = false
+            statusMessage = isHeadingAvailable ? "جاري تحديد الموقع واتجاه البوصلة؛ ابتعد عن المعادن" : "حساس البوصلة غير متوفر على هذا الجهاز"
+            return
+        }
         var diff = qiblaBearing - heading
         while diff > 180 { diff -= 360 }
         while diff < -180 { diff += 360 }
@@ -146,6 +204,7 @@ public struct PhoneQiblaView: View {
                 VStack(spacing: 24) {
                     Spacer(minLength: 12)
                     
+                    if qibla.isReady {
                     // 1. بطاقة البوصلة الرئيسية
                     ZStack {
                         // هالة متوهجة عند محاذاة القبلة
@@ -326,6 +385,17 @@ public struct PhoneQiblaView: View {
                     }
                     .padding(.horizontal, 16)
                     
+                    } else {
+                        VStack(spacing: 16) {
+                            Image(systemName: "location.slash").font(.largeTitle)
+                            Text(qibla.statusMessage).multilineTextAlignment(.center)
+                            Button("إعادة المحاولة") { qibla.stop(); qibla.start() }
+                            if qibla.authorizationStatus == .denied || qibla.authorizationStatus == .restricted {
+                                Link("فتح إعدادات الموقع", destination: URL(string: UIApplication.openSettingsURLString)!)
+                            }
+                        }
+                        .padding()
+                    }
                     Text("ملاحظة: لضمان أعلى دقة، يُفضل حمل الهاتف بشكل أفقي مستوٍ والابتعاد عن المعادن أو المجالات المغناطيسية.")
                         .font(.caption2)
                         .foregroundColor(.secondary)

@@ -1,0 +1,37 @@
+{
+  "identifier": "8F296452-5363-4995-B1EE-BC0CCF70301C",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "1.00",
+      "familyShareable": false,
+      "internalID": "10000001",
+      "localizations": [
+        {
+          "description": "Unlock Fadhkuruni on Apple Watch with a single purchase, no subscription.",
+          "displayName": "Watch Lifetime Unlock",
+          "locale": "en_US"
+        },
+        {
+          "description": "افتح نسخة الساعة بشراء دائم واحد دون اشتراك.",
+          "displayName": "الشراء الدائم لنسخة الساعة",
+          "locale": "ar"
+        }
+      ],
+      "productID": "com.abduallhajmi.fadhkuruni.watch.lifetime",
+      "referenceName": "Watch Lifetime Unlock",
+      "type": "NonConsumable"
+    }
+  ],
+  "settings": {
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_storefront": "USA",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

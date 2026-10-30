@@ -26,6 +26,10 @@ public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDe
     @Published public var isHeadingAvailable: Bool = true
     @Published public var hasLocationFix: Bool = false
     
+    @Published public var hasHeadingFix = false
+    private var isUpdating = false
+    public var isReady: Bool { hasLocationFix && hasHeadingFix && isHeadingAvailable }
+
     private var lastHapticTime: Date = .distantPast
     
     public override init() {
@@ -36,6 +40,21 @@ public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDe
     }
     
     public func start() {
+        isUpdating = true
+        hasLocationFix = false
+        hasHeadingFix = false
+        isAligned = false
+        statusMessage = "جاري تحديد الموقع واتجاه البوصلة..."
+        isHeadingAvailable = CLLocationManager.headingAvailable()
+        guard CLLocationManager.locationServicesEnabled() else {
+            statusMessage = "خدمات الموقع متوقفة؛ فعّلها من إعدادات الجهاز"
+            return
+        }
+        guard locationManager.authorizationStatus != .denied,
+              locationManager.authorizationStatus != .restricted else {
+            statusMessage = "يرجى السماح بالموقع من إعدادات الجهاز لعرض اتجاه القبلة"
+            return
+        }
         let auth = locationManager.authorizationStatus
         if auth == .notDetermined {
             locationManager.requestWhenInUseAuthorization()
@@ -54,6 +73,10 @@ public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDe
     }
     
     public func stop() {
+        isUpdating = false
+        hasLocationFix = false
+        hasHeadingFix = false
+        isAligned = false
         locationManager.stopUpdatingHeading()
         locationManager.stopUpdatingLocation()
     }
@@ -78,6 +101,7 @@ public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDe
     
     // MARK: - CLLocationManagerDelegate
     public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        guard isUpdating else { return }
         let auth = manager.authorizationStatus
         if auth == .authorizedWhenInUse || auth == .authorizedAlways {
             manager.startUpdatingLocation()
@@ -85,15 +109,23 @@ public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDe
                 manager.startUpdatingHeading()
             }
         } else if auth == .denied || auth == .restricted {
-            statusMessage = "يرجى السماح بالوصول للموقع"
+            hasLocationFix = false
+            hasHeadingFix = false
+            isAligned = false
+            manager.stopUpdatingLocation()
+            manager.stopUpdatingHeading()
+            statusMessage = "يرجى السماح بالموقع من إعدادات الجهاز لعرض اتجاه القبلة"
         }
     }
     
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
+        guard isUpdating, let location = locations.last,
+              location.horizontalAccuracy >= 0, location.horizontalAccuracy <= 1000,
+              abs(location.timestamp.timeIntervalSinceNow) < 60 else { return }
         let bearing = calculateBearing(from: location.coordinate)
         
         DispatchQueue.main.async {
+            guard self.isUpdating else { return }
             self.qiblaBearing = bearing
             self.hasLocationFix = true
             self.statusMessage = "تم تحديد الموقع"
@@ -102,16 +134,38 @@ public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDe
     }
     
     public func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
-        let currentHeading = newHeading.trueHeading >= 0 ? newHeading.trueHeading : newHeading.magneticHeading
-        guard currentHeading >= 0 else { return }
+        guard isUpdating else { return }
+        guard newHeading.headingAccuracy >= 0,
+              abs(newHeading.timestamp.timeIntervalSinceNow) < 60,
+              newHeading.trueHeading >= 0 else {
+            hasHeadingFix = false
+            isAligned = false
+            statusMessage = "تعذر قراءة البوصلة؛ ابتعد عن المعادن وأعد المحاولة"
+            return
+        }
+        let currentHeading = newHeading.trueHeading
         
         DispatchQueue.main.async {
+            guard self.isUpdating else { return }
+            self.hasHeadingFix = true
             self.heading = currentHeading
             self.refreshNeedle()
         }
     }
     
+    public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        guard isUpdating else { return }
+        hasLocationFix = false
+        isAligned = false
+        statusMessage = "تعذر تحديد الموقع؛ تأكد من الأذونات وحاول مجددًا"
+    }
+
     private func refreshNeedle() {
+        guard isReady else {
+            isAligned = false
+            statusMessage = isHeadingAvailable ? "جاري تحديد الموقع واتجاه البوصلة؛ ابتعد عن المعادن" : "حساس البوصلة غير متوفر على هذا الجهاز"
+            return
+        }
         var diff = qiblaBearing - heading
         while diff > 180 { diff -= 360 }
         while diff < -180 { diff += 360 }
@@ -164,6 +218,7 @@ public struct WatchQiblaView: View {
                 .padding(.top, 2)
                 .padding(.bottom, 2)
                 
+                if qibla.isReady {
                 // 1. المؤشر الرئيسي للقبلة والبوصلة
                 ZStack {
                     // القرص الخارجي للبوصلة
@@ -314,6 +369,14 @@ public struct WatchQiblaView: View {
                 .background(Color.white.opacity(0.06))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .padding(.top, 4)
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: "location.slash").font(.title2)
+                        Text(qibla.statusMessage).font(.caption).multilineTextAlignment(.center)
+                        Button("إعادة المحاولة") { qibla.stop(); qibla.start() }
+                    }
+                    .padding(.vertical)
+                }
             }
             .padding(.horizontal, 4)
         }
