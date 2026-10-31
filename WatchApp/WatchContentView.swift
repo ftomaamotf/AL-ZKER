@@ -20,6 +20,8 @@ struct WatchContentView: View {
     // استشعار تدوير زر التاج (Digital Crown)
     @State private var crownRotation: Double = 0.0
     @State private var showCrownMenu: Bool = false
+    @State private var pendingScreenReset: ZekrItem?
+    @State private var showScreenResetConfirmation = false
     @FocusState private var isCrownFocused: Bool
 
     // توقيت آخر تسبيحة لإلغاء وتفادي أي هزة ثانية متكررة عند تحريك الأصابع
@@ -52,7 +54,27 @@ struct WatchContentView: View {
                 incrementCount()
             }
 
-            // 2. زر الزيادة الأساسي (مخصص لاستقبال إيماءة Double Tap باليد)
+            HStack(spacing: 16) {
+                if sync.showsDecrementButton {
+                Button {
+                    decrementCount()
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .frame(width: 44, height: 44)
+                        .fadhkuruniGlass(radius: 22)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(sync.currentCount == 0)
+                .opacity(sync.currentCount == 0 ? 0.45 : 1)
+                .accessibilityLabel("إنقاص عداد الذكر بمقدار واحد")
+                .accessibilityHint("اضغط لإنقاص العدد مرة واحدة")
+                .accessibilityAction(named: Text("إنقاص العدد مرة واحدة")) {
+                    decrementCount()
+                }
+                }
             Button {
                 // نفس مسار العد للتفاعل باللمس أو الإيماءة.
                 incrementCount()
@@ -61,15 +83,52 @@ struct WatchContentView: View {
                     .font(.system(size: 26, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 56, height: 56)
-                    .background(Color.green)
-                    .clipShape(Circle())
+                    .fadhkuruniGlass(tint: .green, radius: 28)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("زيادة عداد التسبيح")
             .accessibilityHint("اضغط الزائد أو استخدم إيماءة النقر المزدوج لإضافة تسبيحة")
             .enableDoubleTapGesture() // تفعيل إيماءة النقر المزدوج بالسبابة والإبهام
 
+            }
+            .environment(\.layoutDirection, .leftToRight)
 
+            if sync.showsResetButton {
+            Button {
+                pendingScreenReset = sync.azkarList.first { $0.title == sync.currentZekr }
+                showScreenResetConfirmation = pendingScreenReset != nil
+            } label: {
+                HStack(spacing: 10) {
+                    Text("تصفير").foregroundStyle(.white.opacity(0.9))
+                    Image(systemName: "arrow.counterclockwise")
+                        .foregroundStyle(.white.opacity(0.85))
+                        .frame(width: 26, height: 26)
+                        .background(.black.opacity(0.3), in: Circle())
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: 114, height: 38)
+                .fadhkuruniGlass(radius: 14)
+                .contentShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+            .disabled(sync.currentCount == 0)
+            .opacity(sync.currentCount == 0 ? 0.45 : 1)
+            .accessibilityLabel("تصفير عداد الذكر الحالي")
+            .accessibilityHint("يفتح تأكيد تصفير العداد")
+            }
+
+
+        }
+        .sheet(isPresented: $showScreenResetConfirmation, onDismiss: { pendingScreenReset = nil }) {
+            WatchResetConfirmationView {
+                if let item = pendingScreenReset {
+                    sync.resetZekrCount(for: item)
+                    lastIncrementTime = Date()
+                    WatchKeepAwakeManager.shared.recordCountingActivity()
+                    WKInterfaceDevice.current().play(.success)
+                }
+                pendingScreenReset = nil
+            }
         }
         .padding(.horizontal, 8)
         .environment(\.layoutDirection, .rightToLeft)
@@ -134,6 +193,14 @@ struct WatchContentView: View {
         isCrownFocused = scenePhase == .active && !showCrownMenu
     }
 
+    private func decrementCount() {
+        guard sync.currentCount > 0 else { return }
+        sync.sendSyncPayload(count: sync.currentCount - 1, zekr: sync.currentZekr, target: sync.target)
+        lastIncrementTime = Date()
+        WatchKeepAwakeManager.shared.recordCountingActivity()
+        WKInterfaceDevice.current().play(.click)
+    }
+
     // MARK: - التسبيح والاهتزاز
     private func incrementCount() {
         let now = Date()
@@ -189,6 +256,22 @@ struct CrownOptionsView: View {
                             CrownOptionCard(title: "الهدف", subtitle: "\(sync.target.formatted()) مرة", symbol: "target", tint: .yellow)
                         }
                         .buttonStyle(.plain)
+
+                        Toggle("زر إنقاص العداد", isOn: Binding(
+                            get: { sync.showsDecrementButton },
+                            set: { sync.setShowsDecrementButton($0) }
+                        ))
+                        .font(.caption)
+                        .tint(.green)
+                        .padding(10)
+
+                        Toggle("زر تصفير العداد", isOn: Binding(
+                            get: { sync.showsResetButton },
+                            set: { sync.setShowsResetButton($0) }
+                        ))
+                        .font(.caption)
+                        .tint(.green)
+                        .padding(10)
 
                         Text("إدارة العداد")
                             .font(.caption2.weight(.medium))
@@ -256,8 +339,8 @@ struct CrownOptionsView: View {
                     closeButton
                 }
             }
-            .confirmationDialog("تصفير عداد الذكر؟", isPresented: $showResetConfirmation, titleVisibility: .visible) {
-                Button("قبول", role: .destructive) {
+            .sheet(isPresented: $showResetConfirmation, onDismiss: { pendingReset = nil }) {
+                WatchResetConfirmationView {
                     if let item = pendingReset {
                         sync.resetZekrCount(for: item)
                         WatchKeepAwakeManager.shared.recordCountingActivity()
@@ -265,9 +348,6 @@ struct CrownOptionsView: View {
                     }
                     pendingReset = nil
                 }
-                Button("إلغاء", role: .cancel) { pendingReset = nil }
-            } message: {
-                Text(pendingReset.map { "سيُصفّر عداد «\($0.title)» فقط، وسيبقى الذكر محفوظاً." } ?? "")
             }
         }
         .environment(\.layoutDirection, .leftToRight)
@@ -282,7 +362,7 @@ struct CrownOptionsView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 30, height: 30)
-                .background(Color.white.opacity(0.1), in: Circle())
+                .fadhkuruniGlass(radius: 15)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("إغلاق الخيارات")
@@ -354,18 +434,7 @@ private struct CrownOptionCard: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(LinearGradient(colors: isDestructive ? [Color.red.opacity(0.18), Color.red.opacity(0.08)] : [Color.white.opacity(0.095), Color.white.opacity(0.045)], startPoint: .topLeading, endPoint: .bottomTrailing))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(isDestructive ? Color.red.opacity(0.14) : Color.white.opacity(0.045), lineWidth: 0.5)
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
-        .accessibilityValue(subtitle ?? "")
+        .fadhkuruniGlass(tint: isDestructive ? .red : tint, radius: 18)
     }
 }
 
@@ -373,86 +442,84 @@ private struct CrownOptionCard: View {
 struct WatchSetTargetView: View {
     @ObservedObject var sync: WatchSyncService
     @Binding var isPresented: Bool
-    @State private var currentTarget: Int = 33
+    @State private var currentTarget = 33
     @FocusState private var isTargetCrownFocused: Bool
-    
+
     var body: some View {
         ScrollView {
-            VStack(spacing: 8) {
-                Text("\(currentTarget)")
-                    .font(.system(size: 46, weight: .heavy, design: .rounded))
-                    .foregroundColor(.orange)
-                
-                // أزرار الزيادة والنقصان
-                HStack(spacing: 14) {
-                    Button {
-                        if currentTarget > 1 {
-                            currentTarget = max(1, currentTarget - (currentTarget > 10 ? 10 : 1))
-                            WKInterfaceDevice.current().play(.click)
-                        }
-                    } label: {
-                        Image(systemName: "minus")
-                            .font(.headline.bold())
+            VStack(spacing: 10) {
+                Text(sync.currentZekr)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(currentTarget.formatted())
+                    .font(.system(size: 32, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("الهدف \(currentTarget) مرة")
+                HStack(spacing: 12) {
+                    targetAdjustment(symbol: "minus", label: "إنقاص الهدف", disabled: currentTarget <= 1) {
+                        currentTarget = max(1, currentTarget - (currentTarget > 10 ? 10 : 1))
                     }
-                    .buttonStyle(.bordered)
-                    
-                    Button {
-                        currentTarget += 10
-                        WKInterfaceDevice.current().play(.click)
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.headline.bold())
+                    targetAdjustment(symbol: "plus", label: "زيادة الهدف", disabled: currentTarget >= 10000) {
+                        currentTarget = min(10000, currentTarget + 10)
                     }
-                    .buttonStyle(.bordered)
                 }
-                
-                // أهداف سريعة
-                Text("أهداف سريعة:")
+                .environment(\.layoutDirection, .leftToRight)
+                Text("أهداف سريعة")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
-                
-                HStack(spacing: 4) {
-                    ForEach([33, 100, 300, 1000], id: \.self) { val in
-                        Button("\(val)") {
-                            currentTarget = val
-                            WKInterfaceDevice.current().play(.click)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(currentTarget == val ? .orange : .gray)
-                        .font(.caption2.bold())
-                    }
-                }
-                
-                Button("تأكيد وحفظ") {
+                    .foregroundStyle(.secondary)
+                WatchTargetPresets(selection: $currentTarget)
+                Button {
                     sync.sendSyncPayload(count: sync.currentCount, zekr: sync.currentZekr, target: currentTarget)
                     WKInterfaceDevice.current().play(.success)
                     isPresented = false
+                } label: {
+                    Text("حفظ الهدف")
+                        .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .fadhkuruniGlass(tint: .green)
                 }
-                .tint(.green)
-                .padding(.top, 4)
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
         }
-        .navigationTitle("تحديد الهدف")
+        .navigationTitle("الهدف")
         .environment(\.layoutDirection, .rightToLeft)
         .onAppear {
-            currentTarget = sync.target
+            currentTarget = min(10000, max(1, sync.target))
             isTargetCrownFocused = true
         }
         .focusable()
         .focused($isTargetCrownFocused)
         .digitalCrownRotation(
-            Binding(
-                get: { Double(currentTarget) },
-                set: { currentTarget = max(1, Int($0)) }
-            ),
-            from: 1,
-            through: 10000,
-            by: 1,
-            sensitivity: .medium,
-            isContinuous: false,
-            isHapticFeedbackEnabled: true
+            Binding(get: { Double(currentTarget) }, set: { currentTarget = min(10000, max(1, Int($0))) }),
+            from: 1, through: 10000, by: 1, sensitivity: .medium,
+            isContinuous: false, isHapticFeedbackEnabled: true
         )
+    }
+
+    private func targetAdjustment(symbol: String, label: String, disabled: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+            WKInterfaceDevice.current().play(.click)
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .fadhkuruniGlass(radius: 14)
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .opacity(disabled ? 0.4 : 1)
+        .accessibilityLabel(label)
     }
 }
 
@@ -513,4 +580,57 @@ struct WatchSelectZekrView: View {
 
 #Preview {
     WatchContentView()
+}
+
+// Shared by the counter and Crown menu; cancellation never mutates the count.
+private struct WatchResetConfirmationView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var didConfirm = false
+    let onConfirm: () -> Void
+    private let coral = Color(red: 1, green: 0.53, blue: 0.50)
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 9) {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 21, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .frame(width: 42, height: 42)
+                    .fadhkuruniGlass(radius: 21)
+                Text("تصفير العداد؟")
+                    .font(.system(size: 17, weight: .semibold))
+                Text("سيعود عداد الذكر الحالي إلى الصفر")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(role: .destructive) {
+                    guard !didConfirm else { return }
+                    didConfirm = true
+                    onConfirm()
+                    dismiss()
+                } label: {
+                    Text("تصفير")
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                        .foregroundStyle(coral)
+                        .fadhkuruniGlass(tint: coral, radius: 15)
+                }
+                .disabled(didConfirm)
+                Button { dismiss() } label: {
+                    Text("رجوع")
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                        .foregroundStyle(.white)
+                        .fadhkuruniGlass(radius: 15)
+                }
+                .accessibilityHint("إلغاء التصفير والاحتفاظ بالعدد")
+            }
+            .font(.system(size: 15, weight: .semibold))
+            .buttonStyle(.plain)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+        }
+        .background(Color.black.ignoresSafeArea())
+        .environment(\.layoutDirection, .rightToLeft)
+        .preferredColorScheme(.dark)
+    }
 }

@@ -192,229 +192,74 @@ public final class PhoneQiblaManager: NSObject, ObservableObject, CLLocationMana
     }
 }
 
-// MARK: - واجهة عرض اتجاه القبلة للآيفون
+// MARK: - واجهة القبلة
 public struct PhoneQiblaView: View {
     @StateObject private var qibla = PhoneQiblaManager.shared
-    
     public init() {}
-    
     public var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
-                    Spacer(minLength: 12)
-                    
+                VStack(spacing: 22) {
+                    VStack(spacing: 6) {
+                        Text("وجهتك إلى الكعبة").font(.title2.weight(.semibold))
+                        Text("أمسك الهاتف مستوياً واتبع المؤشر")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
                     if qibla.isReady {
-                    // 1. بطاقة البوصلة الرئيسية
-                    ZStack {
-                        // هالة متوهجة عند محاذاة القبلة
-                        if qibla.isAligned {
-                            Circle()
-                                .fill(Color.green.opacity(0.14))
-                                .frame(width: 300, height: 300)
-                                .blur(radius: 16)
+                        ModernQiblaDial(heading: qibla.heading, bearing: qibla.qiblaBearing,
+                                        needle: qibla.needleAngle, aligned: qibla.isAligned)
+                            .frame(maxWidth: 330)
+                        QiblaDirectionStatus(aligned: qibla.isAligned, needle: qibla.needleAngle)
+                        HStack(spacing: 10) {
+                            metric("زاوية القبلة", value: "\(Int(qibla.qiblaBearing))°", symbol: "location.north")
+                            metric("اتجاه الهاتف", value: "\(Int(qibla.heading))°", symbol: "compass.drawing")
                         }
-                        
-                        // القرص الدائري الخارجي للبوصلة
-                        Circle()
-                            .stroke(
-                                qibla.isAligned ? Color.green : Color.gray.opacity(0.25),
-                                lineWidth: qibla.isAligned ? 4 : 2
-                            )
-                            .frame(width: 270, height: 270)
-                            .shadow(color: qibla.isAligned ? Color.green.opacity(0.4) : Color.clear, radius: 12)
-                        
-                        // تدريجات البوصلة والاتجاهات الأربعة
-                        VStack {
-                            Text("ش (شمال)")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.red)
-                            Spacer()
-                            Text("ج (جنوب)")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.secondary)
-                        }
-                        .frame(height: 250)
-                        
-                        HStack {
-                            Text("غ (غرب)")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Text("شـ (شرق)")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.secondary)
-                        }
-                        .frame(width: 250)
-                        
-                        // القرص المركزي
-                        Circle()
-                            .fill(qibla.isAligned ? Color.green.opacity(0.12) : Color(UIColor.secondarySystemBackground))
-                            .frame(width: 104, height: 104)
-                            .overlay(
-                                Circle()
-                                    .stroke(qibla.isAligned ? Color.green.opacity(0.5) : Color.gray.opacity(0.2), lineWidth: 1.5)
-                            )
-                        
-                        VStack(spacing: 2) {
-                            Text("\(Int(qibla.qiblaBearing))°")
-                                .font(.system(size: 26, weight: .heavy, design: .rounded))
-                                .foregroundColor(qibla.isAligned ? .green : .primary)
-                            Text("القبلة")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        // سهم وعقرب الكعبة المشرفة الدوار
-                        VStack(spacing: 0) {
-                            // رأس السهم يحمل مجسم الكعبة
-                            ZStack {
-                                Circle()
-                                    .fill(qibla.isAligned ? Color.green : Color.orange)
-                                    .frame(width: 44, height: 44)
-                                    .shadow(color: qibla.isAligned ? Color.green.opacity(0.6) : Color.orange.opacity(0.4), radius: 6)
-                                
-                                Text("🕋")
-                                    .font(.system(size: 22))
-                            }
-                            .offset(y: -10)
-                            
-                            // جسم السهم
-                            Rectangle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            qibla.isAligned ? Color.green : Color.orange,
-                                            qibla.isAligned ? Color.green.opacity(0.2) : Color.orange.opacity(0.2)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                                .frame(width: 6, height: 82)
-                            
-                            Spacer()
-                                .frame(height: 96)
-                        }
-                        .rotationEffect(Angle(degrees: qibla.needleAngle))
-                        .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.7), value: qibla.needleAngle)
-                    }
-                    .frame(height: 310)
-                    .padding(.vertical, 8)
-                    
-                    // 2. شارة التوجيه والمحاذاة
-                    if qibla.isAligned {
-                        HStack(spacing: 8) {
-                            Image(systemName: "checkmark.seal.fill")
-                                .font(.title3)
-                            Text("أنت الآن باتجاه القبلة المشرفة 🕋")
-                                .font(.headline.bold())
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.green)
-                        .clipShape(Capsule())
-                        .shadow(color: Color.green.opacity(0.4), radius: 8, y: 3)
-                    } else {
-                        let diff = qibla.needleAngle
-                        HStack(spacing: 8) {
-                            if diff > 4 {
-                                Image(systemName: "arrow.clockwise")
-                                Text("دُر يميناً \(abs(Int(diff)))° نحو الكعبة")
-                            } else if diff < -4 {
-                                Image(systemName: "arrow.counterclockwise")
-                                Text("دُر يساراً \(abs(Int(diff)))° نحو الكعبة")
-                            } else {
-                                Text("احمل الهاتف أفقياً لتحديد دقيق")
-                            }
-                        }
-                        .font(.headline)
-                        .foregroundColor(.orange)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.orange.opacity(0.12))
-                        .clipShape(Capsule())
-                    }
-                    
-                    // 3. بطاقات البيانات والمعلومات
-                    HStack(spacing: 12) {
-                        // زاوية القبلة
-                        VStack(spacing: 4) {
-                            Text("زاوية القبلة")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text("\(Int(qibla.qiblaBearing))°")
-                                .font(.title3.bold())
-                                .foregroundColor(.green)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        
-                        // اتجاه الهاتف
-                        VStack(spacing: 4) {
-                            Text("اتجاه الهاتف")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text("\(Int(qibla.heading))°")
-                                .font(.title3.bold())
-                                .foregroundColor(.primary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        
-                        // المسافة لمكة
                         if qibla.distanceToMeccaKm > 0 {
-                            VStack(spacing: 4) {
-                                Text("المسافة لمكة")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Text("\(Int(qibla.distanceToMeccaKm)) كم")
-                                    .font(.title3.bold())
-                                    .foregroundColor(.teal)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color(UIColor.secondarySystemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            Label("المسافة إلى مكة: \(Int(qibla.distanceToMeccaKm).formatted()) كم", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                                .font(.subheadline).foregroundStyle(.secondary)
                         }
-                    }
-                    .padding(.horizontal, 16)
-                    
                     } else {
                         VStack(spacing: 16) {
-                            Image(systemName: "location.slash").font(.largeTitle)
+                            Image(systemName: "location.magnifyingglass")
+                                .font(.system(size: 42, weight: .light)).foregroundStyle(.teal)
                             Text(qibla.statusMessage).multilineTextAlignment(.center)
-                            Button("إعادة المحاولة") { qibla.stop(); qibla.start() }
+                            Button { qibla.stop(); qibla.start() } label: {
+                                Label("إعادة المحاولة", systemImage: "arrow.clockwise")
+                                    .padding(.horizontal, 18).padding(.vertical, 12)
+                                    .fadhkuruniGlass(tint: .teal)
+                            }.buttonStyle(.plain)
                             if qibla.authorizationStatus == .denied || qibla.authorizationStatus == .restricted {
                                 Link("فتح إعدادات الموقع", destination: URL(string: UIApplication.openSettingsURLString)!)
                             }
                         }
-                        .padding()
+                        .frame(maxWidth: .infinity).padding(.vertical, 32)
                     }
-                    Text("ملاحظة: لضمان أعلى دقة، يُفضل حمل الهاتف بشكل أفقي مستوٍ والابتعاد عن المعادن أو المجالات المغناطيسية.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                    Label("ابتعد عن المعادن والمغناطيس للحصول على قراءة أدق", systemImage: "info.circle")
+                        .font(.caption).foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 8)
-                    
-                    Spacer(minLength: 20)
                 }
+                .padding(20)
+                .frame(maxWidth: 520).frame(maxWidth: .infinity)
             }
-            .navigationTitle("اتِّجَاهُ الْقِبْلَةِ")
+            .background {
+                LinearGradient(colors: [Color.teal.opacity(0.09), Color.clear], startPoint: .top, endPoint: .bottom)
+                    .ignoresSafeArea()
+            }
+            .navigationTitle("القبلة")
             .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                qibla.start()
-            }
-            .onDisappear {
-                qibla.stop()
-            }
+            .onAppear { qibla.start() }
+            .onDisappear { qibla.stop() }
         }
         .environment(\.layoutDirection, .rightToLeft)
+    }
+    private func metric(_ title: String, value: String, symbol: String) -> some View {
+        VStack(spacing: 8) {
+            Label(title, systemImage: symbol).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(.title3.weight(.semibold)).monospacedDigit()
+                .lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(Color.teal.opacity(0.15), lineWidth: 0.5))
     }
 }

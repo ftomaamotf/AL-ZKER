@@ -6,7 +6,7 @@ struct FadhkuruniWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            WatchPurchaseGate()
+            DrivingModePreviewGate { DrivingModeGate { WatchPurchaseGate() } }
                 .task {
                     TapFeedback.shared.prepare()
                     WatchPurchaseAccess.shared.onPurchaseChanged = { WatchSyncService.shared.notifyWatchPurchaseChanged() }

@@ -6,12 +6,13 @@ struct FadhkuruniApp: App {
 
     var body: some Scene {
         WindowGroup {
-            GestureWelcomeGate { ContentView() }
+            DrivingModePreviewGate { DrivingModeGate { GestureWelcomeGate { ContentView() } } }
                 .task {
                     IconBadgeManager.shared.update(count: WatchSyncService.shared.currentCount)
                     TapFeedback.shared.prepare()
                     WatchPurchaseAccess.shared.onPurchaseChanged = { WatchSyncService.shared.notifyWatchPurchaseChanged() }
                     await WatchPurchaseAccess.shared.refresh()
+                    DrivingModeManager.shared.start()
                 }
                 .onChange(of: scenePhase) { _, phase in
                     IconBadgeManager.shared.update(count: WatchSyncService.shared.currentCount)

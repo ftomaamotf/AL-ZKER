@@ -11,6 +11,79 @@ import SwiftUI
 public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelegate {
     public static let shared = WatchSyncService()
 
+    /// Mirrored from the iPhone when vehicle movement is detected.
+    @Published public private(set) var isDrivingLocked = UserDefaults.standard.bool(forKey: "fadhkuruni_driving_locked")
+    @Published public private(set) var isPassengerBypassed = false
+
+    public func bypassDrivingLock() {
+        isPassengerBypassed = true
+    }
+
+    public func resetPassengerBypass() {
+        isPassengerBypassed = false
+    }
+
+    public func setDrivingLocked(_ value: Bool) {
+        if !value {
+            isPassengerBypassed = false
+        }
+        guard isDrivingLocked != value else { return }
+        isDrivingLocked = value
+        UserDefaults.standard.set(value, forKey: "fadhkuruni_driving_locked")
+        sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
+    }
+
+    private func applyDrivingLock(_ payload: [String: Any]) {
+        guard let value = payload["drivingLocked"] as? Bool else { return }
+        if !value {
+            isPassengerBypassed = false
+        }
+        isDrivingLocked = value
+        UserDefaults.standard.set(value, forKey: "fadhkuruni_driving_locked")
+    }
+
+    @Published public private(set) var showsDecrementButton = UserDefaults.standard.object(forKey: "watchMinusVisible") as? Bool ?? true
+    private var minusTime: Double { UserDefaults.standard.double(forKey: "watchMinusTime") }
+    private var minusOrigin: String { UserDefaults.standard.string(forKey: "watchMinusOrigin") ?? "" }
+    public func setShowsDecrementButton(_ value: Bool) {
+        showsDecrementButton = value
+        UserDefaults.standard.set(value, forKey: "watchMinusVisible")
+        UserDefaults.standard.set(max(Date().timeIntervalSince1970, minusTime.nextUp), forKey: "watchMinusTime")
+        UserDefaults.standard.set(deviceOrigin, forKey: "watchMinusOrigin")
+        sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
+    }
+    private func applyMinusPreference(_ payload: [String: Any]) {
+        guard let value = payload["watchMinusVisible"] as? Bool,
+              let time = payload["watchMinusTime"] as? Double, time.isFinite, time > 0,
+              let origin = payload["watchMinusOrigin"] as? String,
+              time > minusTime || (time == minusTime && origin > minusOrigin) else { return }
+        showsDecrementButton = value
+        UserDefaults.standard.set(value, forKey: "watchMinusVisible")
+        UserDefaults.standard.set(time, forKey: "watchMinusTime")
+        UserDefaults.standard.set(origin, forKey: "watchMinusOrigin")
+    }
+
+    @Published public private(set) var showsResetButton = UserDefaults.standard.object(forKey: "watchResetVisible") as? Bool ?? true
+    private var resetVisibilityTime: Double { UserDefaults.standard.double(forKey: "watchResetTime") }
+    private var resetVisibilityOrigin: String { UserDefaults.standard.string(forKey: "watchResetOrigin") ?? "" }
+    public func setShowsResetButton(_ value: Bool) {
+        showsResetButton = value
+        UserDefaults.standard.set(value, forKey: "watchResetVisible")
+        UserDefaults.standard.set(max(Date().timeIntervalSince1970, resetVisibilityTime.nextUp), forKey: "watchResetTime")
+        UserDefaults.standard.set(deviceOrigin, forKey: "watchResetOrigin")
+        sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
+    }
+    private func applyResetPreference(_ payload: [String: Any]) {
+        guard let value = payload["watchResetVisible"] as? Bool,
+              let time = payload["watchResetTime"] as? Double, time.isFinite, time > 0,
+              let origin = payload["watchResetOrigin"] as? String,
+              time > resetVisibilityTime || (time == resetVisibilityTime && origin > resetVisibilityOrigin) else { return }
+        showsResetButton = value
+        UserDefaults.standard.set(value, forKey: "watchResetVisible")
+        UserDefaults.standard.set(time, forKey: "watchResetTime")
+        UserDefaults.standard.set(origin, forKey: "watchResetOrigin")
+    }
+
     @Published public var currentCount: Int = 0
     @Published public var currentZekr: String = "سبحان الله"
     @Published public var target: Int = 33
@@ -50,6 +123,13 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             payload["azkarData"] = data
         }
         payload["ledgerV2"] = try? JSONEncoder().encode(ledger)
+        payload["watchMinusVisible"] = showsDecrementButton
+        payload["watchMinusTime"] = minusTime
+        payload["watchMinusOrigin"] = minusOrigin
+        payload["watchResetVisible"] = showsResetButton
+        payload["watchResetTime"] = resetVisibilityTime
+        payload["watchResetOrigin"] = resetVisibilityOrigin
+        payload["drivingLocked"] = isDrivingLocked
         return payload
     }
 
@@ -383,6 +463,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     /// Count one local tap without emitting a destructive reset at cycle boundaries.
     @discardableResult
     public func incrementCurrentZekr() -> Bool? {
+        guard !isDrivingLocked || isPassengerBypassed else { return nil }
         guard azkarList.contains(where: { $0.title == currentZekr }) else { return nil }
         let next = SyncRevision(timestamp: max(Date().timeIntervalSince1970, revision.timestamp.nextUp), origin: deviceOrigin)
         guard let reachedGoal = ledger.recordTap(title: currentZekr, stamp: .init(time: next.timestamp, origin: next.origin)) else { return nil }
@@ -500,6 +581,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     }
 
     private func applyIncomingPayload(_ payload: [String: Any]) {
+        applyMinusPreference(payload)
+        applyResetPreference(payload)
+        applyDrivingLock(payload)
         if payload["action"] as? String == "refreshWatchPurchase" {
             // Connectivity is a refresh hint, never proof of payment.
             Task { await WatchPurchaseAccess.shared.refresh() }

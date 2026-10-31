@@ -20,7 +20,7 @@ struct GestureWelcomeGate<Content: View>: View {
     }
 }
 
-private struct GestureWelcomeView: View {
+private struct GestureInstructionsView: View {
     let onContinue: () -> Void
 
     var body: some View {
@@ -55,5 +55,60 @@ private struct GestureWelcomeView: View {
                 .padding(.bottom, 8)
         }
         .environment(\.layoutDirection, .rightToLeft)
+    }
+}
+
+// First-launch introduction to the Crown, followed by the existing gesture guide.
+struct GestureWelcomeView: View {
+    let onContinue: () -> Void
+    @State private var showGestures = false
+    var body: some View {
+        if showGestures {
+            GestureInstructionsView(onContinue: onContinue)
+        } else {
+            VStack(spacing: 8) {
+                ScrollView {
+                    VStack(spacing: 10) {
+                        Image(systemName: "digitalcrown.horizontal.arrow.clockwise")
+                            .font(.system(size: 34, weight: .light))
+                            .foregroundStyle(.mint)
+                            .frame(width: 66, height: 60)
+                            .fadhkuruniGlass(tint: .teal, radius: 20)
+                            .accessibilityHidden(true)
+                        Text("خياراتك في التاج")
+                            .font(.system(size: 18, weight: .semibold))
+                        Text("دوّر التاج الجانبي لفتح الخيارات")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.mint)
+                        Text("من شاشة العدّاد، حرّك التاج للأعلى أو للأسفل لتظهر قائمة الخيارات.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 9) {
+                            Label("اختيار ذكر أو إضافة ذكر", systemImage: "list.bullet")
+                            Label("تحديد هدف التسبيح", systemImage: "target")
+                            Label("القبلة وإعدادات الأزرار", systemImage: "location.north")
+                        }
+                        .font(.caption2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+                    }
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 8)
+                    .padding(.top, 4)
+                }
+                Button { showGestures = true } label: {
+                    Text("التالي")
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                        .fadhkuruniGlass(tint: .green, radius: 15)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 4)
+            }
+            .environment(\.layoutDirection, .rightToLeft)
+        }
     }
 }

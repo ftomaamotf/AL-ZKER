@@ -278,6 +278,7 @@ public struct TargetSoundItem: Identifiable, Hashable {
 public struct PhoneCompanionView: View {
     @ObservedObject private var watchAccess = WatchPurchaseAccess.shared
     @AppStorage(TapFeedbackPreference.soundEnabledKey) private var isTapSoundEnabled = true
+    @AppStorage("fadhkuruni_driving_mode_enabled") private var isDrivingModeEnabled = true
     @ObservedObject private var sync = WatchSyncService.shared
     @State private var selectedTab = 0
     
@@ -492,43 +493,52 @@ public struct PhoneCompanionView: View {
     
     // MARK: - بطاقة العداد والهدف وخلفيتها
     private var counterCardBackground: some View {
-        RoundedRectangle(cornerRadius: 32)
-            .fill(isButtonsLocked ? Color.white : Color.green.opacity(0.08))
-            .overlay(
-                RoundedRectangle(cornerRadius: 32)
-                    .stroke(isButtonsLocked ? Color.gray.opacity(0.2) : Color.green.opacity(0.2), lineWidth: 1)
-            )
-            .shadow(color: isButtonsLocked ? Color.black.opacity(0.05) : Color.clear, radius: 10, y: 4)
+        RoundedRectangle(cornerRadius: 38, style: .continuous)
+            .fill(.ultraThinMaterial)
+            .overlay {
+                RoundedRectangle(cornerRadius: 38, style: .continuous)
+                    .fill(LinearGradient(colors: [.clear, Color.green.opacity(isButtonsLocked ? 0.04 : 0.12)], startPoint: .top, endPoint: .bottom))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 38, style: .continuous)
+                    .strokeBorder(LinearGradient(colors: [Color.primary.opacity(0.16), Color.green.opacity(0.12), Color.primary.opacity(0.05)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 0.8)
+            }
+            .shadow(color: .green.opacity(0.07), radius: 18, y: 8)
+            .accessibilityHidden(true)
     }
-    
+
     private var counterCardView: some View {
         VStack(spacing: 8) {
-            Text("\(sync.currentCount)")
-                .font(.system(size: 104, weight: .heavy, design: .rounded))
-                .foregroundColor(.green)
-                .contentTransition(.numericText())
-            
-            Group {
-                Text("الهدف: \(sync.target)")
-                    .font(.title3.weight(.medium))
-                    .foregroundColor(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
-
-                // مؤشر اكتمال الهدف
-                if sync.currentCount >= sync.target && sync.target > 0 {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.seal.fill")
-                        Text("ما شاء الله! اكتمل الهدف")
-                            .font(.caption.bold())
-                    }
-                    .foregroundColor(.green)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 5)
-                    .background(Color.green.opacity(0.15))
-                    .clipShape(Capsule())
-                    .padding(.top, 2)
+            ZStack {
+                Circle().stroke(Color.green.opacity(0.10), lineWidth: 7)
+                Circle()
+                    .trim(from: 0, to: sync.target > 0 ? min(1, max(0, Double(sync.currentCount) / Double(sync.target))) : 0)
+                    .stroke(LinearGradient(colors: [.green.opacity(0.55), .mint], startPoint: .bottomLeading, endPoint: .topTrailing), style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .accessibilityHidden(true)
+                VStack(spacing: 4) {
+                    Text(sync.currentCount.formatted())
+                        .font(.system(size: 72, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.45)
+                        .foregroundStyle(.green)
+                        .contentTransition(.numericText())
+                    Text("الهدف \(sync.target.formatted())")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
-
+                .padding(20)
             }
+            .frame(width: 190, height: 190)
+            .environment(\.layoutDirection, .leftToRight)
+            Text("\(max(0, sync.target - sync.currentCount).formatted()) مرات لإكمال الهدف")
+                .font(.caption)
+                .foregroundStyle(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
+                .padding(.top, 8)
+
             // مؤشر قفل الأخطاء
             HStack(spacing: 6) {
                 Image(systemName: "lock.shield.fill")
@@ -566,7 +576,7 @@ public struct PhoneCompanionView: View {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                     }
                 } label: {
-                    counterControlLabel(title: "ناقص", symbol: "minus", tint: .red)
+                    counterControlLabel(title: "إنقاص", symbol: "minus", tint: .red)
                 }
                 .frame(maxWidth: .infinity)
 
@@ -610,7 +620,7 @@ public struct PhoneCompanionView: View {
                 .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(isPrimary ? Color.white : tint)
                 .frame(width: 52, height: 52)
-                .background(isPrimary ? tint : tint.opacity(0.14), in: Circle())
+                .fadhkuruniGlass(tint: isPrimary ? .green : tint, radius: 26)
             Text(title)
                 .font(.caption2.bold())
                 .foregroundStyle(tint)
@@ -698,7 +708,7 @@ public struct PhoneCompanionView: View {
         }
         .padding(.top, 8)
         .padding(.bottom, 6)
-        .background(Color(UIColor.secondarySystemBackground))
+        .fadhkuruniGlass(radius: 24)
         .overlay(
             Rectangle()
                 .frame(height: 0.5)
@@ -950,6 +960,31 @@ public struct PhoneCompanionView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("على الآيفون") {
+                    Toggle(isOn: $isDrivingModeEnabled) {
+                        settingsLabel("الإيقاف أثناء القيادة", subtitle: "يوقف العدّ تلقائياً عند حركة السيارة", icon: "car.fill")
+                    }
+                    .tint(.green)
+                    .onChange(of: isDrivingModeEnabled) { _, enabled in
+                        DrivingModeManager.shared.setEnabled(enabled)
+                    }
+                    Text("يعتمد على نشاط المركبة في الآيفون، ولا يستطيع التمييز بين السائق والراكب. تتوقف الشاشة والساعة معاً، ويعود العدّ بعد التوقف.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    
+                    Button {
+                        withAnimation {
+                            let newValue = !sync.isDrivingLocked
+                            sync.setDrivingLocked(newValue)
+                        }
+                    } label: {
+                        HStack {
+                            Label(sync.isDrivingLocked ? "إلغاء وضع القيادة التجريبي" : "تجربة وضع القيادة الآن", systemImage: sync.isDrivingLocked ? "car.badge.gearshape.fill" : "car.fill")
+                            Spacer()
+                            if sync.isDrivingLocked {
+                                Text("مفعّل").font(.caption).foregroundStyle(.orange)
+                            }
+                        }
+                    }
+                    .tint(sync.isDrivingLocked ? .orange : .green)
                     Toggle(isOn: $isTapSoundEnabled) {
                         settingsLabel("صوت الضغطات", subtitle: "نقرة خفيفة", icon: "speaker.wave.2")
                     }
@@ -978,7 +1013,7 @@ public struct PhoneCompanionView: View {
                                 .font(.title2).foregroundStyle(.green)
                                 .frame(width: 42, height: 42)
                                 .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
-                            Text("رفيق الساعة").font(.title3.weight(.semibold))
+                            Text("إدارة الساعة").font(.title3.weight(.semibold))
                             Spacer()
                             Label(watchAccess.isPurchased ? "مفعّل" : "مقفل",
                                   systemImage: watchAccess.isPurchased ? "checkmark.seal.fill" : "lock.fill")
@@ -1007,6 +1042,16 @@ public struct PhoneCompanionView: View {
                     watchSettingsLink("الأذكار والأهداف", subtitle: "الذكر المعروض، الهدف وتصفير العدّاد", icon: "list.bullet") {
                         Form { watchAzkarSettings }.navigationTitle("الأذكار والأهداف")
                     }
+                    Toggle("زر إنقاص العداد", isOn: Binding(
+                        get: { sync.showsDecrementButton },
+                        set: { sync.setShowsDecrementButton($0) }
+                    ))
+                    .tint(.green)
+                    Toggle("زر تصفير العداد", isOn: Binding(
+                        get: { sync.showsResetButton },
+                        set: { sync.setShowsResetButton($0) }
+                    ))
+                    .tint(.green)
                     watchSettingsLink("طرق العدّ والإيماءات", subtitle: "اللمس والنقر المزدوج", icon: "hand.tap") {
                         Form { watchGestureSettings }.navigationTitle("طرق العدّ والإيماءات")
                     }

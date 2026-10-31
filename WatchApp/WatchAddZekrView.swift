@@ -26,18 +26,16 @@ struct WatchAddZekrView: View {
 
             Section("هدف التسبيح") {
                 Stepper(value: $target, in: 1...10000) {
-                    Text("الهدف: \(target.formatted())")
-                        .monospacedDigit()
-                }
-                HStack(spacing: 6) {
-                    ForEach([33, 100, 1000], id: \.self) { value in
-                        Button(value.formatted()) { target = value }
-                            .font(.caption2.bold())
-                            .buttonStyle(.bordered)
-                            .tint(target == value ? .green : .gray)
-                            .accessibilityLabel("هدف \(value) مرة")
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("عدد المرات").font(.caption2).foregroundStyle(.secondary)
+                        Text(target.formatted())
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                 }
+                WatchTargetPresets(selection: $target)
             }
 
             if existingItem != nil {
@@ -67,7 +65,7 @@ struct WatchAddZekrView: View {
                 Button("إلغاء", role: .cancel) { dismiss() }
             }
         }
-        .navigationTitle("إضافة ذكر جديد")
+        .navigationTitle("ذكر جديد")
         .environment(\.layoutDirection, .rightToLeft)
     }
 

@@ -187,207 +187,51 @@ public final class QiblaManager: NSObject, ObservableObject, CLLocationManagerDe
     }
 }
 
-// MARK: - واجهة عرض اتجاه القبلة لساعة آبل
+// MARK: - واجهة القبلة
 public struct WatchQiblaView: View {
     @StateObject private var qibla = QiblaManager.shared
     @Environment(\.dismiss) private var dismiss
-    
     public init() {}
-    
     public var body: some View {
         ScrollView {
             VStack(spacing: 10) {
-                // زر الرجوع في أعلى الشاشة في وسطها
-                Button {
-                    dismiss()
-                } label: {
-                    HStack(spacing: 5) {
+                HStack {
+                    Button { dismiss() } label: {
                         Image(systemName: "chevron.backward")
-                            .font(.system(size: 11, weight: .bold))
-                        Text("الرجوع")
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(width: 36, height: 36)
+                            .fadhkuruniGlass(radius: 18)
                     }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 6)
-                    .background(Color.gray.opacity(0.35))
-                    .clipShape(Capsule())
+                    .buttonStyle(.plain).accessibilityLabel("رجوع")
+                    Spacer()
+                    Text("القبلة").font(.headline)
                 }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 2)
-                .padding(.bottom, 2)
-                
                 if qibla.isReady {
-                // 1. المؤشر الرئيسي للقبلة والبوصلة
-                ZStack {
-                    // القرص الخارجي للبوصلة
-                    Circle()
-                        .stroke(
-                            qibla.isAligned ? Color.green.opacity(0.8) : Color.gray.opacity(0.3),
-                            lineWidth: qibla.isAligned ? 3 : 2
-                        )
-                        .frame(width: 134, height: 134)
-                        .shadow(color: qibla.isAligned ? Color.green.opacity(0.6) : Color.clear, radius: 8)
-                    
-                    // الاتجاهات الأربعة الرئيسية على القرص
-                    VStack {
-                        Text("ش")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.red)
-                        Spacer()
-                        Text("ج")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(height: 124)
-                    
-                    HStack {
-                        Text("غ")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text("شـ")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(width: 124)
-                    
-                    // الدائرة الداخلية المركزية
-                    Circle()
-                        .fill(qibla.isAligned ? Color.green.opacity(0.15) : Color.white.opacity(0.06))
-                        .frame(width: 56, height: 56)
-                    
-                    // مركز البوصلة: يعرض زاوية القبلة
-                    VStack(spacing: 0) {
-                        Text("\(Int(qibla.qiblaBearing))°")
-                            .font(.system(size: 15, weight: .heavy, design: .rounded))
-                            .foregroundColor(qibla.isAligned ? .green : .primary)
-                        Text("القبلة")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    // سهم وعقرب الكعبة المشرفة الدوار
-                    VStack(spacing: 0) {
-                        // مجسم الكعبة عند رأس السهم
-                        ZStack {
-                            Circle()
-                                .fill(qibla.isAligned ? Color.green : Color.orange)
-                                .frame(width: 28, height: 28)
-                                .shadow(color: qibla.isAligned ? Color.green : Color.orange.opacity(0.5), radius: 4)
-                            
-                            Text("🕋")
-                                .font(.system(size: 14))
-                        }
-                        .offset(y: -5)
-                        
-                        // جسم السهم
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        qibla.isAligned ? Color.green : Color.orange,
-                                        qibla.isAligned ? Color.green.opacity(0.2) : Color.orange.opacity(0.2)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .frame(width: 4, height: 40)
-                        
-                        Spacer()
-                            .frame(height: 50)
-                    }
-                    .rotationEffect(Angle(degrees: qibla.needleAngle))
-                    .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.7), value: qibla.needleAngle)
-                }
-                .padding(.top, 4)
-                
-                // 2. حالة التوجيه الحالية (توجيه يمين / يسار / اتجاه صحيح)
-                if qibla.isAligned {
-                    HStack(spacing: 5) {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.caption2)
-                        Text("أنت باتجاه القبلة 🕋")
-                            .font(.caption.bold())
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(Color.green)
-                    .clipShape(Capsule())
-                    .shadow(color: Color.green.opacity(0.4), radius: 5)
+                    ModernQiblaDial(heading: qibla.heading, bearing: qibla.qiblaBearing,
+                                    needle: qibla.needleAngle, aligned: qibla.isAligned, compact: true)
+                        .frame(maxWidth: 160)
+                    QiblaDirectionStatus(aligned: qibla.isAligned, needle: qibla.needleAngle, compact: true)
+                    Text("اتجاه الساعة: \(Int(qibla.heading))°")
+                        .font(.caption2).monospacedDigit().foregroundStyle(.secondary)
                 } else {
-                    let diff = qibla.needleAngle
-                    HStack(spacing: 5) {
-                        if diff > 6 {
-                            Text("دُر يميناً ⟳")
-                                .font(.caption.bold())
-                                .foregroundColor(.orange)
-                        } else if diff < -6 {
-                            Text("دُر يساراً ⟲")
-                                .font(.caption.bold())
-                                .foregroundColor(.orange)
-                        } else {
-                            Text("اضبط الساعة أفقياً")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(Color.orange.opacity(0.15))
-                    .clipShape(Capsule())
+                    Image(systemName: "location.magnifyingglass")
+                        .font(.title2).foregroundStyle(.teal)
+                    Text(qibla.statusMessage).font(.caption).multilineTextAlignment(.center)
+                    Button { qibla.stop(); qibla.start() } label: {
+                        Text("إعادة المحاولة").font(.caption)
+                            .frame(maxWidth: .infinity, minHeight: 42)
+                            .fadhkuruniGlass(tint: .teal)
+                    }.buttonStyle(.plain)
                 }
-                
-                // زاوية توجيه الساعة
-                HStack(spacing: 12) {
-                    VStack(spacing: 2) {
-                        Text("اتجاه الساعة")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                        Text("\(Int(qibla.heading))°")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.primary)
-                    }
-                    
-                    Divider()
-                        .frame(height: 16)
-                    
-                    VStack(spacing: 2) {
-                        Text("زاوية القبلة")
-                            .font(.system(size: 9))
-                            .foregroundColor(.secondary)
-                        Text("\(Int(qibla.qiblaBearing))°")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.green)
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .padding(.top, 4)
-                } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "location.slash").font(.title2)
-                        Text(qibla.statusMessage).font(.caption).multilineTextAlignment(.center)
-                        Button("إعادة المحاولة") { qibla.stop(); qibla.start() }
-                    }
-                    .padding(.vertical)
-                }
+                Text("أبقِ الساعة مستوية وبعيدة عن المعادن")
+                    .font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
             }
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 8).padding(.bottom, 8)
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .environment(\.layoutDirection, .rightToLeft)
-        .onAppear {
-            qibla.start()
-        }
-        .onDisappear {
-            qibla.stop()
-        }
+        .onAppear { qibla.start() }
+        .onDisappear { qibla.stop() }
     }
 }
