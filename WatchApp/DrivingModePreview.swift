@@ -16,13 +16,13 @@ struct DrivingModePreviewGate<Content: View>: View {
     }
 }
 
-/// The real driving lock on Apple Watch.
+/// The real movement safety lock on Apple Watch.
 struct DrivingModeGate<Content: View>: View {
     @ObservedObject private var sync = WatchSyncService.shared
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        if sync.isDrivingLocked && !sync.isPassengerBypassed {
+        if sync.isDrivingLocked {
             DrivingModePreview(isPreview: false)
         } else {
             content()
@@ -50,7 +50,7 @@ struct DrivingModePreview: View {
                     // 1. Top Mini Badge
                     HStack(spacing: 4) {
                         Circle().fill(Color.orange).frame(width: 5, height: 5)
-                        Text("وضع القيادة مفعّل")
+                        Text("وضع الأمان مفعّل")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.orange)
                     }
@@ -61,9 +61,9 @@ struct DrivingModePreview: View {
 
                     Spacer(minLength: 2)
 
-                    // 2. Car Icon in Glass Card
+                    // 2. Movement safety icon in glass card
                     VStack(spacing: 3) {
-                        Image(systemName: "car.fill")
+                        Image(systemName: "hand.raised.fill")
                             .font(.system(size: 26, weight: .light))
                             .foregroundStyle(LinearGradient(colors: [.white, .teal.opacity(0.9)], startPoint: .top, endPoint: .bottom))
                             .frame(width: 54, height: 54)
@@ -81,11 +81,11 @@ struct DrivingModePreview: View {
                             }
                             .shadow(color: .teal.opacity(0.3), radius: 8)
 
-                        Text("حفظك الله ورعاك")
+                        Text("التطبيق متوقف")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white)
 
-                        Text("التسبيح متوقف لسلامتك على الطريق")
+                        Text("التسبيح متوقف أثناء الحركة")
                             .font(.system(size: 9))
                             .foregroundStyle(.white.opacity(0.75))
                             .multilineTextAlignment(.center)
@@ -95,7 +95,7 @@ struct DrivingModePreview: View {
 
                     Spacer(minLength: 2)
 
-                    // 3. Status Badge & Passenger Bypass
+                    // 3. Status badge. The safety lock has no bypass.
                     VStack(spacing: 3) {
                         HStack(spacing: 4) {
                             Circle().fill(Color.green).frame(width: 5, height: 5)
@@ -108,17 +108,6 @@ struct DrivingModePreview: View {
                         .background(.ultraThinMaterial, in: Capsule())
                         .overlay(Capsule().strokeBorder(Color.teal.opacity(0.3), lineWidth: 0.5))
 
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                sync.bypassDrivingLock()
-                            }
-                        } label: {
-                            Text("أنا راكب ولست السائق")
-                                .font(.system(size: 8, weight: .medium))
-                                .foregroundStyle(.secondary)
-                                .underline()
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 4)

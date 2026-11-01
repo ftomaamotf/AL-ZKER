@@ -14,13 +14,13 @@ struct DrivingModePreviewGate<Content: View>: View {
     }
 }
 
-/// The real driving lock.
+/// The real movement safety lock.
 struct DrivingModeGate<Content: View>: View {
     @ObservedObject private var sync = WatchSyncService.shared
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        if sync.isDrivingLocked && !sync.isPassengerBypassed {
+        if sync.isDrivingLocked {
             DrivingModePreview(isPreview: false)
         } else {
             content()
@@ -52,7 +52,7 @@ struct DrivingModePreview: View {
                     
                     HStack(spacing: 8) {
                         Circle().fill(Color.orange).frame(width: 8, height: 8)
-                        Text("وضع القيادة مفعّل")
+                        Text("وضع الأمان مفعّل")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(.orange)
                     }
@@ -63,9 +63,9 @@ struct DrivingModePreview: View {
 
                     Spacer(minLength: 16)
 
-                    // 2. Car Center Glass Card
+                    // 2. Movement safety glass card
                     VStack(spacing: 16) {
-                        Image(systemName: "car.fill")
+                        Image(systemName: "hand.raised.fill")
                             .font(.system(size: 52, weight: .light))
                             .foregroundStyle(LinearGradient(colors: [.white, .teal.opacity(0.9)], startPoint: .top, endPoint: .bottom))
                             .frame(width: 118, height: 118)
@@ -83,11 +83,11 @@ struct DrivingModePreview: View {
                             }
                             .shadow(color: .teal.opacity(0.35), radius: 18)
 
-                        Text("حفظك الله ورعاك")
+                        Text("التطبيق متوقف")
                             .font(.title2.weight(.bold))
                             .foregroundStyle(.white)
 
-                        Text("سلامتك أهم من كل شيء.\nاذكر الله بقلبك ولسانك دون الانشغال بالشاشة.")
+                        Text("مؤقتاً أثناء الحركة")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.75))
                             .multilineTextAlignment(.center)
@@ -97,7 +97,7 @@ struct DrivingModePreview: View {
 
                     Spacer(minLength: 16)
 
-                    // 3. Bottom Status & Passenger Bypass Button
+                    // 3. Bottom status. The safety lock has no bypass.
                     VStack(spacing: 12) {
                         HStack(spacing: 6) {
                             Circle().fill(Color.green).frame(width: 7, height: 7)
@@ -110,29 +110,10 @@ struct DrivingModePreview: View {
                         .background(.ultraThinMaterial, in: Capsule())
                         .overlay(Capsule().strokeBorder(Color.teal.opacity(0.3), lineWidth: 0.5))
 
-                        Text("يعود العداد للعمل تلقائياً فور التوقف التام")
+                        Text("يعود العداد للعمل تلقائياً عند السكون")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
 
-                        // Passenger Bypass Button
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                sync.bypassDrivingLock()
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "person.fill")
-                                    .font(.system(size: 13))
-                                Text("هل أنت راكب؟ اضغط لفتح العداد")
-                                    .font(.footnote.weight(.medium))
-                            }
-                            .foregroundStyle(.white.opacity(0.95))
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 9)
-                            .background(.ultraThinMaterial, in: Capsule())
-                            .overlay(Capsule().strokeBorder(.white.opacity(0.2), lineWidth: 0.6))
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 24)

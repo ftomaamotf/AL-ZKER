@@ -195,6 +195,7 @@ public final class PhoneQiblaManager: NSObject, ObservableObject, CLLocationMana
 // MARK: - واجهة القبلة
 public struct PhoneQiblaView: View {
     @StateObject private var qibla = PhoneQiblaManager.shared
+    @Environment(\.dismiss) private var dismiss
     public init() {}
     public var body: some View {
         NavigationStack {
@@ -247,6 +248,13 @@ public struct PhoneQiblaView: View {
             }
             .navigationTitle("القبلة")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("إغلاق") {
+                        dismiss()
+                    }
+                }
+            }
             .onAppear { qibla.start() }
             .onDisappear { qibla.stop() }
         }

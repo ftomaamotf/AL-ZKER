@@ -278,9 +278,9 @@ public struct TargetSoundItem: Identifiable, Hashable {
 public struct PhoneCompanionView: View {
     @ObservedObject private var watchAccess = WatchPurchaseAccess.shared
     @AppStorage(TapFeedbackPreference.soundEnabledKey) private var isTapSoundEnabled = true
-    @AppStorage("fadhkuruni_driving_mode_enabled") private var isDrivingModeEnabled = true
     @ObservedObject private var sync = WatchSyncService.shared
     @State private var selectedTab = 0
+    @State private var showQiblaSheet = false
     
     // Add/Edit State
     @State private var showAddSheet = false
@@ -302,6 +302,9 @@ public struct PhoneCompanionView: View {
     @AppStorage("fadhkuruni_target_sound_id") private var selectedTargetSoundId: Int = 1
     @AppStorage("fadhkuruni_target_sound_enabled") private var isTargetSoundEnabled: Bool = true
     @State private var hasAlertedForCurrentTarget: Bool = false
+    // A single physical touch can occasionally reach overlapping SwiftUI gesture layers.
+    // Keep rapid intentional tasbih responsive while ignoring a duplicate callback.
+    @State private var lastPhoneIncrementTime: Date = .distantPast
     @Environment(\.scenePhase) private var scenePhase
     
     public init() {}
@@ -315,8 +318,6 @@ public struct PhoneCompanionView: View {
                 case 1:
                     azkarTabView
                 case 2:
-                    PhoneQiblaView()
-                case 3:
                     settingsTabView
                 default:
                     counterTabView
@@ -484,9 +485,28 @@ public struct PhoneCompanionView: View {
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    SupportLink().labelStyle(.iconOnly)
+                    Button {
+                        showQiblaSheet = true
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.green.opacity(0.14))
+                                .frame(width: 34, height: 34)
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(Color.green.opacity(0.35), lineWidth: 0.8)
+                                )
+                            Image(systemName: "safari.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.green)
+                        }
+                        .accessibilityLabel("اتجاه القبلة")
+                    }
                 }
-
+            }
+            .sheet(isPresented: $showQiblaSheet) {
+                PhoneQiblaView()
             }
         }
     }
@@ -670,37 +690,19 @@ public struct PhoneCompanionView: View {
             }
             .buttonStyle(.plain)
             
-            // 3. زر اتجاه القبلة
+            // 3. زر الإعدادات
             Button {
                 selectedTab = 2
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             } label: {
                 VStack(spacing: 4) {
-                    Image(systemName: "safari.fill")
+                    Image(systemName: "gearshape.fill")
                         .font(.system(size: 20, weight: selectedTab == 2 ? .bold : .regular))
-                    Text("اتجاه القبلة")
+                    Text("الإعدادات")
                         .font(.system(size: 11, weight: selectedTab == 2 ? .bold : .medium))
                 }
-                .accessibilityLabel("اتجاه القبلة")
-                .foregroundColor(selectedTab == 2 ? .green : .secondary)
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            
-            // 4. زر الإعدادات
-            Button {
-                selectedTab = 3
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            } label: {
-                VStack(spacing: 4) {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 20, weight: selectedTab == 3 ? .bold : .regular))
-                    Text("الإعدادات")
-                        .font(.system(size: 11, weight: selectedTab == 3 ? .bold : .medium))
-                }
                 .accessibilityLabel("الإعدادات")
-                .foregroundColor(selectedTab == 3 ? .green : .secondary)
+                .foregroundColor(selectedTab == 2 ? .green : .secondary)
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
             }
@@ -718,6 +720,9 @@ public struct PhoneCompanionView: View {
     }
     
     private func incrementPhoneCount() {
+        let now = Date()
+        guard now.timeIntervalSince(lastPhoneIncrementTime) > 0.12 else { return }
+        lastPhoneIncrementTime = now
         guard let reachedGoal = sync.incrementCurrentZekr() else { return }
         TapFeedback.shared.play(goalReached: reachedGoal)
     }
@@ -960,31 +965,25 @@ public struct PhoneCompanionView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("على الآيفون") {
-                    Toggle(isOn: $isDrivingModeEnabled) {
-                        settingsLabel("الإيقاف أثناء القيادة", subtitle: "يوقف العدّ تلقائياً عند حركة السيارة", icon: "car.fill")
-                    }
-                    .tint(.green)
-                    .onChange(of: isDrivingModeEnabled) { _, enabled in
-                        DrivingModeManager.shared.setEnabled(enabled)
-                    }
-                    Text("يعتمد على نشاط المركبة في الآيفون، ولا يستطيع التمييز بين السائق والراكب. تتوقف الشاشة والساعة معاً، ويعود العدّ بعد التوقف.")
-                        .font(.caption).foregroundStyle(.secondary)
-                    
-                    Button {
-                        withAnimation {
-                            let newValue = !sync.isDrivingLocked
-                            sync.setDrivingLocked(newValue)
+                    HStack(spacing: 12) {
+                        Image(systemName: "hand.raised.fill")
+                            .foregroundStyle(.green)
+                            .frame(width: 28, height: 28)
+                            .background(.green.opacity(0.12), in: Circle())
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("وضع أمان")
+                                .font(.body.weight(.medium))
+                            Text(sync.isDrivingLocked
+                                 ? "التطبيق والساعة متوقفان حتى تتوقف السيارة"
+                                 : "عند تحرّك السيارة، يتوقف التطبيق على الآيفون والساعة تلقائياً، وعند توقفها يعودان إلى العمل.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                    } label: {
-                        HStack {
-                            Label(sync.isDrivingLocked ? "إلغاء وضع القيادة التجريبي" : "تجربة وضع القيادة الآن", systemImage: sync.isDrivingLocked ? "car.badge.gearshape.fill" : "car.fill")
-                            Spacer()
-                            if sync.isDrivingLocked {
-                                Text("مفعّل").font(.caption).foregroundStyle(.orange)
-                            }
-                        }
+                        Spacer()
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundStyle(.green)
+                            .accessibilityLabel("وضع الأمان مفعّل")
                     }
-                    .tint(sync.isDrivingLocked ? .orange : .green)
                     Toggle(isOn: $isTapSoundEnabled) {
                         settingsLabel("صوت الضغطات", subtitle: "نقرة خفيفة", icon: "speaker.wave.2")
                     }
@@ -995,6 +994,9 @@ public struct PhoneCompanionView: View {
                             TapFeedback.shared.prepare()
                         }
                         else { TapFeedback.shared.stop() }
+                    }
+                    NavigationLink { DhikrRemindersView() } label: {
+                        settingsLabel("التذكيرات", subtitle: "ملخصات الذكر وأوقات التذكير", icon: "bell.badge")
                     }
                     NavigationLink { TapFeedbackSettingsView() } label: {
                         settingsLabel("تنبيه الضغطات", subtitle: "الصوت والاهتزاز", icon: "hand.tap")

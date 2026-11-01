@@ -13,24 +13,12 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
 
     /// This is controlled by the iPhone's motion service and mirrored to the watch.
     @Published public private(set) var isDrivingLocked = UserDefaults.standard.bool(forKey: "fadhkuruni_driving_locked")
-    @Published public private(set) var isPassengerBypassed = false
 
     public func setDrivingLocked(_ value: Bool) {
-        if !value {
-            isPassengerBypassed = false
-        }
         guard isDrivingLocked != value else { return }
         isDrivingLocked = value
         UserDefaults.standard.set(value, forKey: "fadhkuruni_driving_locked")
         sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
-    }
-
-    public func bypassDrivingLock() {
-        isPassengerBypassed = true
-    }
-
-    public func resetPassengerBypass() {
-        isPassengerBypassed = false
     }
 
     @Published public private(set) var showsDecrementButton = UserDefaults.standard.object(forKey: "watchMinusVisible") as? Bool ?? true
@@ -79,6 +67,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     @Published public var currentZekr: String = "سبحان الله"
     @Published public var target: Int = 33
     @Published public var azkarList: [ZekrItem] = []
+    @Published public private(set) var statistics = DhikrStatisticsLedger()
 
     private var badgeObservation: AnyCancellable?
 
@@ -90,6 +79,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     private var encodedAzkarSnapshot: Data?
     private let azkarStorageKey = "fadhkuruni_saved_azkar_v1"
     private let currentZekrStorageKey = "fadhkuruni_current_zekr_v1"
+    private let statisticsStorageKey = "fadhkuruni_statistics_v1"
+    private let statisticsResetTimeKey = "fadhkuruni_statistics_reset_time_v1"
+    private var statisticsResetTime: Double { UserDefaults.standard.double(forKey: statisticsResetTimeKey) }
 
     private let revisionTimeKey = "fadhkuruni_sync_revision_time"
     private let revisionOriginKey = "fadhkuruni_sync_revision_origin"
@@ -116,6 +108,8 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             payload["azkarData"] = data
         }
         payload["ledgerV2"] = try? JSONEncoder().encode(ledger)
+        payload["statisticsV1"] = try? JSONEncoder().encode(statistics)
+        payload["statisticsResetTime"] = statisticsResetTime
         payload["watchMinusVisible"] = showsDecrementButton
         payload["watchMinusTime"] = minusTime
         payload["watchMinusOrigin"] = minusOrigin
@@ -128,6 +122,10 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
 
     private override init() {
         super.init()
+        if let data = UserDefaults.standard.data(forKey: statisticsStorageKey),
+           let saved = try? JSONDecoder().decode(DhikrStatisticsLedger.self, from: data) {
+            statistics = saved
+        }
         loadSavedAzkar()
         if let data = UserDefaults.standard.data(forKey: ledgerKey), let saved = try? JSONDecoder().decode(DhikrLedger.self, from: data), saved.isValid {
             ledger = saved
@@ -146,6 +144,15 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         badgeObservation = $currentCount.removeDuplicates()
             .debounce(for: .milliseconds(120), scheduler: RunLoop.main)
             .sink { count in IconBadgeManager.shared.update(count: count) }
+    }
+
+    /// Clears only statistics, never the dhikr list, goals, or the visible counters.
+    public func clearStatistics() {
+        statistics = DhikrStatisticsLedger()
+        let stamp = max(Date().timeIntervalSince1970, statisticsResetTime.nextUp)
+        UserDefaults.standard.set(stamp, forKey: statisticsResetTimeKey)
+        persistStatistics()
+        sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
     }
 
     // MARK: - Azkar Persistence & Management
@@ -487,11 +494,13 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     /// Count one local tap without emitting a destructive reset at cycle boundaries.
     @discardableResult
     public func incrementCurrentZekr() -> Bool? {
-        guard !isDrivingLocked || isPassengerBypassed else { return nil }
+        guard !isDrivingLocked else { return nil }
         guard azkarList.contains(where: { $0.title == currentZekr }) else { return nil }
         let next = SyncRevision(timestamp: max(Date().timeIntervalSince1970, revision.timestamp.nextUp), origin: deviceOrigin)
         guard let reachedGoal = ledger.recordTap(title: currentZekr, stamp: .init(time: next.timestamp, origin: next.origin)) else { return nil }
         storeRevision(next)
+        statistics.recordTap(origin: deviceOrigin)
+        persistStatistics()
         azkarList = ledger.items
         restoreActiveItem()
         applyingLedger = true
@@ -628,6 +637,20 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             return
         }
 
+        let remoteResetTime = payload["statisticsResetTime"] as? Double ?? 0
+        if remoteResetTime > statisticsResetTime {
+            UserDefaults.standard.set(remoteResetTime, forKey: statisticsResetTimeKey)
+            statistics = DhikrStatisticsLedger()
+            persistStatistics()
+        }
+        if remoteResetTime >= statisticsResetTime,
+           let data = payload["statisticsV1"] as? Data,
+           let remoteStatistics = try? JSONDecoder().decode(DhikrStatisticsLedger.self, from: data) {
+            let beforeStatistics = statistics
+            statistics.merge(remoteStatistics)
+            if statistics != beforeStatistics { persistStatistics() }
+        }
+
         guard let data = payload["ledgerV2"] as? Data,
               let remote = try? JSONDecoder().decode(DhikrLedger.self, from: data), remote.isValid else { return }
         let before = ledger
@@ -659,6 +682,12 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             currentZekr = item.title; currentCount = item.count; target = item.defaultTarget
         } else { currentZekr = ""; currentCount = 0; target = 33 }
         UserDefaults.standard.set(currentZekr, forKey: currentZekrStorageKey)
+    }
+
+    private func persistStatistics() {
+        if let data = try? JSONEncoder().encode(statistics) {
+            UserDefaults.standard.set(data, forKey: statisticsStorageKey)
+        }
     }
 
 

@@ -8,15 +8,22 @@ struct FadhkuruniApp: App {
         WindowGroup {
             DrivingModePreviewGate { DrivingModeGate { GestureWelcomeGate { ContentView() } } }
                 .task {
+                    // Ask for motion/location access as soon as the app opens; StoreKit refresh can wait on the network.
+                    DrivingModeManager.shared.start()
+                    DhikrSummaryNotificationScheduler.shared.refresh()
                     IconBadgeManager.shared.update(count: WatchSyncService.shared.currentCount)
                     TapFeedback.shared.prepare()
                     WatchPurchaseAccess.shared.onPurchaseChanged = { WatchSyncService.shared.notifyWatchPurchaseChanged() }
                     await WatchPurchaseAccess.shared.refresh()
-                    DrivingModeManager.shared.start()
                 }
                 .onChange(of: scenePhase) { _, phase in
                     IconBadgeManager.shared.update(count: WatchSyncService.shared.currentCount)
-                    if phase == .active { TapFeedback.shared.prepare(); Task { await WatchPurchaseAccess.shared.refresh() } }
+                    if phase == .active {
+                        TapFeedback.shared.prepare()
+                        DrivingModeManager.shared.start()
+                        DhikrSummaryNotificationScheduler.shared.refresh()
+                        Task { await WatchPurchaseAccess.shared.refresh() }
+                    }
                 }
         }
     }
