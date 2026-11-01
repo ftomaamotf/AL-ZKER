@@ -280,7 +280,8 @@ public struct PhoneCompanionView: View {
     @AppStorage(TapFeedbackPreference.soundEnabledKey) private var isTapSoundEnabled = true
     @ObservedObject private var sync = WatchSyncService.shared
     @State private var selectedTab = 0
-    @State private var showQiblaSheet = false
+    @State private var showQiblaInCard = false
+    @ObservedObject private var qibla = PhoneQiblaManager.shared
     
     // Add/Edit State
     @State private var showAddSheet = false
@@ -379,12 +380,29 @@ public struct PhoneCompanionView: View {
             UIApplication.shared.isIdleTimerDisabled = (newPhase == .active)
             if newPhase == .active {
                 sync.activateSession()
-
+                if showQiblaInCard {
+                    PhoneQiblaManager.shared.start()
+                }
+            } else {
+                if showQiblaInCard {
+                    PhoneQiblaManager.shared.stop()
+                }
             }
         }
         .onDisappear {
             // إعادة ضبط مؤقت القفل التلقائي عند الخروج من التطبيق
             UIApplication.shared.isIdleTimerDisabled = false
+            if showQiblaInCard {
+                PhoneQiblaManager.shared.stop()
+            }
+        }
+        .onChange(of: selectedTab) { _, newTab in
+            if newTab != 0 && showQiblaInCard {
+                withAnimation {
+                    showQiblaInCard = false
+                    PhoneQiblaManager.shared.stop()
+                }
+            }
         }
         .onChange(of: sync.currentCount) { _, newCount in
             handleCountChange(newCount: newCount)
@@ -407,14 +425,14 @@ public struct PhoneCompanionView: View {
                 VStack(spacing: 0) {
                     Spacer(minLength: 16)
                     
-                    // نوع الذكر الحالي
+                    // نوع الذكر الحالي أو عنوان القبلة
                     VStack(spacing: 6) {
-                        Text("الذكر الحالي")
+                        Text(showQiblaInCard ? "بوصلة القبلة الشريفة" : "الذكر الحالي")
                             .font(.subheadline)
                             .foregroundColor(isButtonsLocked ? Color.black.opacity(0.5) : .secondary)
                         
-                        Text(sync.currentZekr)
-                            .font(.system(size: 28, weight: .bold))
+                        Text(showQiblaInCard ? "وجّه الهاتف نحو الكعبة" : sync.currentZekr)
+                            .font(.system(size: showQiblaInCard ? 24 : 28, weight: .bold))
                             .foregroundColor(isButtonsLocked ? .black : .primary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
@@ -429,9 +447,9 @@ public struct PhoneCompanionView: View {
                     
                     // إرشاد النقر على الشاشة
                     HStack(spacing: 6) {
-                        Image(systemName: isButtonsLocked ? "hand.tap.fill" : "hand.tap.fill")
+                        Image(systemName: showQiblaInCard ? "safari.fill" : "hand.tap.fill")
                             .font(.footnote)
-                        Text(isButtonsLocked ? "المس في أي مكان بالشاشة للتسبيح" : "المس في أي مكان بالشاشة للتسبيح")
+                        Text(showQiblaInCard ? "المس زر القبلة بأعلى الشاشة للعودة للعدّاد" : "المس في أي مكان بالشاشة للتسبيح")
                             .font(.subheadline)
                     }
                     .foregroundColor(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
@@ -444,6 +462,9 @@ public struct PhoneCompanionView: View {
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onEnded { value in
+                            if showQiblaInCard {
+                                return
+                            }
                             let h = value.translation.width
                             let v = value.translation.height
                             if abs(h) < 20 && abs(v) < 20 {
@@ -464,10 +485,12 @@ public struct PhoneCompanionView: View {
                         }
                 )
                 
-                // يبقى زر القفل في موضعه؛ تُخفى أدوات العد الأخرى وتتعطل عند القفل.
+                // يبقى زر القفل في موضعه؛ تُخفى أدوات العد الأخرى وتتعطل عند القفل أو في وضع القبلة.
                 bottomControlBar
                     .padding(.horizontal, 16)
                     .padding(.bottom, 6)
+                    .opacity(showQiblaInCard ? 0 : 1)
+                    .allowsHitTesting(!showQiblaInCard)
             }
             .background(
                 (isButtonsLocked ? Color.white : Color(UIColor.systemBackground))
@@ -485,28 +508,34 @@ public struct PhoneCompanionView: View {
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showQiblaSheet = true
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(Color.green.opacity(0.14))
-                                .frame(width: 34, height: 34)
-                                .overlay(
-                                    Circle()
-                                        .strokeBorder(Color.green.opacity(0.35), lineWidth: 0.8)
-                                )
-                            Image(systemName: "safari.fill")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.green)
+                    if !isButtonsLocked {
+                        Button {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                showQiblaInCard.toggle()
+                                if showQiblaInCard {
+                                    PhoneQiblaManager.shared.start()
+                                } else {
+                                    PhoneQiblaManager.shared.stop()
+                                }
+                            }
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        } label: {
+                            ZStack {
+                                Circle()
+                                    .fill(showQiblaInCard ? Color.green : Color.green.opacity(0.14))
+                                    .frame(width: 34, height: 34)
+                                    .overlay(
+                                        Circle()
+                                            .strokeBorder(Color.green.opacity(0.35), lineWidth: 0.8)
+                                    )
+                                Image(systemName: "safari.fill")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(showQiblaInCard ? Color.black : Color.green)
+                            }
+                            .accessibilityLabel(showQiblaInCard ? "العودة للعدّاد" : "اتجاه القبلة")
                         }
-                        .accessibilityLabel("اتجاه القبلة")
                     }
                 }
-            }
-            .sheet(isPresented: $showQiblaSheet) {
-                PhoneQiblaView()
             }
         }
     }
@@ -528,6 +557,16 @@ public struct PhoneCompanionView: View {
     }
 
     private var counterCardView: some View {
+        Group {
+            if showQiblaInCard {
+                qiblaCardContent
+            } else {
+                normalCounterCardContent
+            }
+        }
+    }
+
+    private var normalCounterCardContent: some View {
         VStack(spacing: 8) {
             ZStack {
                 Circle().stroke(Color.green.opacity(0.10), lineWidth: 7)
@@ -576,6 +615,234 @@ public struct PhoneCompanionView: View {
                 .accessibilityHidden(!isButtonsLocked)
         }
         .padding(.vertical, 24)
+        .frame(maxWidth: .infinity)
+        .background(counterCardBackground)
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - بطاقة القبلة والكعبة المدمجة داخل العداد
+    private var qiblaCardContent: some View {
+        VStack(spacing: 10) {
+            // شريط علوي صغير للبطاقة
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "safari.fill")
+                        .foregroundStyle(qibla.isAligned ? Color(red: 0.98, green: 0.75, blue: 0.14) : Color.green)
+                    Text("اتجاه القبلة الشريفة")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.primary)
+                }
+                Spacer()
+                if qibla.isAligned {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 10, weight: .bold))
+                        Text("محاذاة تامة")
+                            .font(.caption2.bold())
+                    }
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 3.5)
+                    .background(Color(red: 0.98, green: 0.75, blue: 0.14).opacity(0.20))
+                    .foregroundColor(Color(red: 0.98, green: 0.75, blue: 0.14))
+                    .clipShape(Capsule())
+                } else if qibla.isReady {
+                    Text("\(Int(round(qibla.qiblaBearing)))°")
+                        .font(.caption2.monospacedDigit().bold())
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 3.5)
+                        .background(Color.green.opacity(0.12))
+                        .foregroundColor(.green)
+                        .clipShape(Capsule())
+                }
+            }
+            .padding(.horizontal, 10)
+
+            // الدائرة المركزية
+            ZStack {
+                // الحلقة الخارجية
+                Circle()
+                    .stroke(
+                        qibla.isAligned
+                            ? LinearGradient(colors: [Color(red: 0.98, green: 0.75, blue: 0.14), Color.yellow, Color(red: 0.98, green: 0.75, blue: 0.14)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                            : LinearGradient(colors: [Color.green.opacity(0.35), Color.green.opacity(0.10)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        lineWidth: qibla.isAligned ? 3.5 : 2
+                    )
+                    .frame(width: 190, height: 190)
+                    .shadow(color: qibla.isAligned ? Color(red: 0.98, green: 0.75, blue: 0.14).opacity(0.40) : .clear, radius: 10)
+
+                if qibla.isAligned {
+                    // صورة الكعبة المشرفة تحت العدسة الزجاجية الكريستالية
+                    ZStack {
+                        // الطبقة 1: صورة الكعبة
+                        Image("HolyKaaba")
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 174, height: 174)
+                            .clipShape(Circle())
+
+                        // الطبقة 2: عدسة زجاجية ياقوتية ثلاثية الأبعاد (Crystal Dome)
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color.white.opacity(0.48),
+                                        Color.white.opacity(0.15),
+                                        Color.black.opacity(0.32),
+                                        Color.white.opacity(0.26)
+                                    ],
+                                    center: .init(x: 0.35, y: 0.25),
+                                    startRadius: 0,
+                                    endRadius: 90
+                                )
+                            )
+                            .frame(width: 174, height: 174)
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            colors: [
+                                                Color.white.opacity(0.85),
+                                                Color(red: 0.98, green: 0.75, blue: 0.14).opacity(0.45),
+                                                Color.white.opacity(0.20)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 2
+                                    )
+                            )
+                            // لمعة التقوس الكروي للزجاج
+                            .overlay(alignment: .top) {
+                                Ellipse()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.white.opacity(0.70), Color.white.opacity(0.18), Color.clear],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                                    .frame(width: 108, height: 46)
+                                    .padding(.top, 6)
+                            }
+                            // انعكاس الحافة السفلية للزجاج
+                            .overlay(alignment: .bottom) {
+                                Ellipse()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.clear, Color.white.opacity(0.28)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                                    .frame(width: 80, height: 15)
+                                    .padding(.bottom, 6)
+                            }
+                    }
+                    .transition(.scale(scale: 0.88).combined(with: .opacity))
+                } else {
+                    // بوصلة التوجيه
+                    ZStack {
+                        Circle()
+                            .fill(Color.green.opacity(0.04))
+                            .frame(width: 174, height: 174)
+
+                        // علامات الجهات
+                        VStack {
+                            Text("ش")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(.red)
+                            Spacer()
+                            Text("ج")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(height: 166)
+
+                        HStack {
+                            Text("غ")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("ش")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(width: 166)
+
+                        // إبرة البوصلة الدوارة
+                        VStack(spacing: 0) {
+                            Image(systemName: "location.north.fill")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundStyle(LinearGradient(colors: [Color(red: 0.98, green: 0.75, blue: 0.14), Color.green], startPoint: .top, endPoint: .bottom))
+                                .shadow(color: Color.green.opacity(0.4), radius: 5)
+                            Rectangle()
+                                .fill(LinearGradient(colors: [Color.green, Color.mint.opacity(0.2)], startPoint: .top, endPoint: .bottom))
+                                .frame(width: 3.5, height: 48)
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 8, height: 8)
+                        }
+                        .rotationEffect(.degrees(qibla.needleAngle))
+                        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: qibla.needleAngle)
+
+                        // إرشاد الحركة
+                        VStack {
+                            Spacer()
+                            let angle = qibla.needleAngle
+                            Text(abs(angle) <= 12 ? "اقتربت من القبلة" : (angle > 0 ? "اتجه يميناً" : "اتجه يساراً"))
+                                .font(.caption.bold())
+                                .foregroundStyle(abs(angle) <= 12 ? Color(red: 0.98, green: 0.75, blue: 0.14) : Color.green)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 3)
+                                .background(Color(UIColor.secondarySystemBackground).opacity(0.85))
+                                .clipShape(Capsule())
+                                .padding(.bottom, 20)
+                        }
+                    }
+                }
+            }
+            .frame(width: 190, height: 190)
+
+            // نص التوجيه أسفل الدائرة
+            VStack(spacing: 3) {
+                if qibla.isAligned {
+                    HStack(spacing: 5) {
+                        Circle().fill(Color(red: 0.98, green: 0.75, blue: 0.14)).frame(width: 7, height: 7)
+                        Text("الكعبة المشرفة أمامك تماماً (\(Int(round(qibla.qiblaBearing)))°)")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(Color(red: 0.98, green: 0.75, blue: 0.14))
+                    }
+                } else {
+                    Text(qibla.statusMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.top, 2)
+
+            // زر العودة لعداد التسبيح
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    showQiblaInCard = false
+                    PhoneQiblaManager.shared.stop()
+                }
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.caption2.bold())
+                    Text("العودة لعدّاد التسبيح")
+                        .font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(.green)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 5)
+                .background(Color.green.opacity(0.10))
+                .clipShape(Capsule())
+            }
+            .padding(.top, 2)
+        }
+        .padding(.vertical, 18)
         .frame(maxWidth: .infinity)
         .background(counterCardBackground)
         .padding(.horizontal, 16)
