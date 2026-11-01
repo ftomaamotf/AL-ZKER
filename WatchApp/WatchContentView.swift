@@ -23,101 +23,135 @@ struct WatchContentView: View {
     @State private var pendingScreenReset: ZekrItem?
     @State private var showScreenResetConfirmation = false
     @FocusState private var isCrownFocused: Bool
+    @State private var isQiblaActive: Bool = false
+    @ObservedObject private var qibla = QiblaManager.shared
 
     // توقيت آخر تسبيحة لإلغاء وتفادي أي هزة ثانية متكررة عند تحريك الأصابع
     @State private var lastIncrementTime: Date = .distantPast
 
     var body: some View {
         VStack(spacing: 6) {
-            // 1. المنطقة العلوية (العنوان + الذكر + العداد) قابلة للمس المباشر
-            VStack(spacing: 4) {
-                Text("فَاذْكُرُونِي")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-
-                Text(sync.currentZekr)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .padding(.horizontal, 4)
-
-                Text("\(sync.currentCount)")
-                    .font(.system(size: 54, weight: .bold, design: .rounded))
-                    .foregroundStyle(.green)
-                    .contentTransition(.numericText())
-            }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-            // لمس المنطقة العلوية للعد (اهتزاز بنقرة واحدة عند لمس الشاشة)
-            .onTapGesture {
-                incrementCount()
-            }
-
-            HStack(spacing: 16) {
-                if sync.showsDecrementButton {
+            // 1. الشريط العلوي: زر القبلة بأعلى اليمين + اسم الذكر
+            HStack(alignment: .center) {
+                // أعلى يمين الشاشة: زر القبلة المباشر
                 Button {
-                    decrementCount()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        isQiblaActive.toggle()
+                        if isQiblaActive {
+                            QiblaManager.shared.start()
+                        } else {
+                            QiblaManager.shared.stop()
+                        }
+                    }
+                    WKInterfaceDevice.current().play(.click)
                 } label: {
-                    Image(systemName: "minus")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: 44, height: 44)
-                        .fadhkuruniGlass(radius: 22)
-                        .contentShape(Circle())
+                    ZStack {
+                        Circle()
+                            .fill(isQiblaActive ? Color.green : Color.green.opacity(0.18))
+                            .frame(width: 32, height: 32)
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(Color.green.opacity(0.45), lineWidth: 1)
+                            )
+                        Image(systemName: "safari.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(isQiblaActive ? Color.black : Color.green)
+                    }
+                    .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .disabled(sync.currentCount == 0)
-                .opacity(sync.currentCount == 0 ? 0.45 : 1)
-                .accessibilityLabel("إنقاص عداد الذكر بمقدار واحد")
-                .accessibilityHint("اضغط لإنقاص العدد مرة واحدة")
-                .accessibilityAction(named: Text("إنقاص العدد مرة واحدة")) {
-                    decrementCount()
-                }
-                }
-            Button {
-                // نفس مسار العد للتفاعل باللمس أو الإيماءة.
-                incrementCount()
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
-                    .fadhkuruniGlass(tint: .green, radius: 28)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("زيادة عداد التسبيح")
-            .accessibilityHint("اضغط الزائد أو استخدم إيماءة النقر المزدوج لإضافة تسبيحة")
-            .enableDoubleTapGesture() // تفعيل إيماءة النقر المزدوج بالسبابة والإبهام
+                .accessibilityLabel(isQiblaActive ? "العودة للعدّاد" : "اتجاه القبلة")
 
+                Spacer()
+
+                // عنوان الذكر / التطبيق
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(isQiblaActive ? "اتجاه القبلة" : sync.currentZekr)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+
+                    Text(isQiblaActive ? (qibla.isAligned ? "محاذاة تامة" : "وجّه الساعة") : "فَاذْكُرُونِي")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(isQiblaActive && qibla.isAligned ? Color.yellow : Color.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 4)
+
+            // 2. المنطقة المركزية: دائرة العداد المتطابقة مع الآيفون أو بوصلة القبلة
+            ZStack {
+                if isQiblaActive {
+                    watchQiblaCircleView
+                } else {
+                    watchCounterCircleView
+                }
+            }
+            .frame(width: 136, height: 136)
+
+            // 3. أزرار التحكم السفلية
+            HStack(spacing: 12) {
+                if sync.showsDecrementButton {
+                    Button {
+                        decrementCount()
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .frame(width: 38, height: 38)
+                            .fadhkuruniGlass(radius: 19)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(sync.currentCount == 0 || isQiblaActive)
+                    .opacity(sync.currentCount == 0 || isQiblaActive ? 0.35 : 1)
+                    .accessibilityLabel("إنقاص عداد الذكر بمقدار واحد")
+                }
+
+                if sync.showsResetButton {
+                    Button {
+                        pendingScreenReset = sync.azkarList.first { $0.title == sync.currentZekr }
+                        showScreenResetConfirmation = pendingScreenReset != nil
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("تصفير").foregroundStyle(.white.opacity(0.9))
+                            Image(systemName: "arrow.counterclockwise")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.white.opacity(0.85))
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: 74, height: 34)
+                        .fadhkuruniGlass(radius: 12)
+                        .contentShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(sync.currentCount == 0 || isQiblaActive)
+                    .opacity(sync.currentCount == 0 || isQiblaActive ? 0.35 : 1)
+                    .accessibilityLabel("تصفير عداد الذكر الحالي")
+                }
+
+                Button {
+                    if isQiblaActive {
+                        withAnimation {
+                            isQiblaActive = false
+                            QiblaManager.shared.stop()
+                        }
+                    } else {
+                        incrementCount()
+                    }
+                } label: {
+                    Image(systemName: isQiblaActive ? "arrow.uturn.backward" : "plus")
+                        .font(.system(size: isQiblaActive ? 16 : 22, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .fadhkuruniGlass(tint: isQiblaActive ? .orange : .green, radius: 22)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isQiblaActive ? "العودة للعدّاد" : "زيادة عداد التسبيح")
+                .enableDoubleTapGesture()
             }
             .environment(\.layoutDirection, .leftToRight)
-
-            if sync.showsResetButton {
-            Button {
-                pendingScreenReset = sync.azkarList.first { $0.title == sync.currentZekr }
-                showScreenResetConfirmation = pendingScreenReset != nil
-            } label: {
-                HStack(spacing: 10) {
-                    Text("تصفير").foregroundStyle(.white.opacity(0.9))
-                    Image(systemName: "arrow.counterclockwise")
-                        .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: 26, height: 26)
-                        .background(.black.opacity(0.3), in: Circle())
-                }
-                .font(.system(size: 12, weight: .semibold))
-                .frame(width: 114, height: 38)
-                .fadhkuruniGlass(radius: 14)
-                .contentShape(RoundedRectangle(cornerRadius: 14))
-            }
-            .buttonStyle(.plain)
-            .disabled(sync.currentCount == 0)
-            .opacity(sync.currentCount == 0 ? 0.45 : 1)
-            .accessibilityLabel("تصفير عداد الذكر الحالي")
-            .accessibilityHint("يفتح تأكيد تصفير العداد")
-            }
-
-
         }
         .sheet(isPresented: $showScreenResetConfirmation, onDismiss: { pendingScreenReset = nil }) {
             WatchResetConfirmationView {
@@ -175,17 +209,219 @@ struct WatchContentView: View {
         // إعادة الساعة إلى طبيعتها وحفظ الطاقة فور الخروج من التطبيق
         .onDisappear {
             WatchKeepAwakeManager.shared.stopKeepAwake()
+            if isQiblaActive {
+                QiblaManager.shared.stop()
+            }
         }
         .onChange(of: scenePhase) {
             if scenePhase == .active {
                 sync.activateSession()
                 WatchKeepAwakeManager.shared.resumeCountingSession()
                 restoreCrownFocus()
+                if isQiblaActive {
+                    QiblaManager.shared.start()
+                }
             } else if scenePhase == .background {
                 WatchKeepAwakeManager.shared.stopKeepAwake()
                 isCrownFocused = false
+                if isQiblaActive {
+                    QiblaManager.shared.stop()
+                }
             }
             // Inactive (for example, a lowered wrist) keeps the existing session and idle deadline.
+        }
+    }
+
+    // MARK: - دائرة العداد المتطابقة مع الآيفون
+    private var watchCounterCircleView: some View {
+        ZStack {
+            // حلقة المسار الخلفية
+            Circle()
+                .stroke(Color.green.opacity(0.14), lineWidth: 6)
+
+            // حلقة التقدم المضيئة
+            Circle()
+                .trim(from: 0, to: sync.target > 0 ? min(1, max(0, Double(sync.currentCount) / Double(sync.target))) : 0)
+                .stroke(
+                    LinearGradient(colors: [.green.opacity(0.65), .mint], startPoint: .bottomLeading, endPoint: .topTrailing),
+                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sync.currentCount)
+
+            // الأرقام والهدف في المنتصف
+            VStack(spacing: 2) {
+                Text("\(sync.currentCount)")
+                    .font(.system(size: 44, weight: .bold, design: .rounded))
+                    .foregroundStyle(.green)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+
+                Text("الهدف \(sync.target)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(12)
+        }
+        .frame(width: 136, height: 136)
+        .contentShape(Circle())
+        .onTapGesture {
+            incrementCount()
+        }
+    }
+
+    // MARK: - بطاقة القبلة داخل دائرة الساعة
+    private var watchQiblaCircleView: some View {
+        ZStack {
+            // الحلقة الخارجية
+            Circle()
+                .stroke(
+                    qibla.isAligned
+                        ? LinearGradient(colors: [Color.yellow, Color(red: 0.98, green: 0.75, blue: 0.14), Color.yellow], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        : LinearGradient(colors: [Color.green.opacity(0.4), Color.green.opacity(0.15)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: qibla.isAligned ? 3 : 2
+                )
+                .shadow(color: qibla.isAligned ? Color.yellow.opacity(0.4) : .clear, radius: 8)
+
+            if qibla.isAligned {
+                // صورة الكعبة المشرفة فائقة الوضوح تحت العدسة الزجاجية الكريستالية
+                ZStack {
+                    Image("HolyKaaba")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 122, height: 122)
+                        .clipShape(Circle())
+
+                    // العدسة الزجاجية الكريستالية
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    Color.white.opacity(0.48),
+                                    Color.white.opacity(0.15),
+                                    Color.black.opacity(0.30),
+                                    Color.white.opacity(0.25)
+                                ],
+                                center: .init(x: 0.35, y: 0.25),
+                                startRadius: 0,
+                                endRadius: 65
+                            )
+                        )
+                        .frame(width: 122, height: 122)
+                        .overlay(
+                            Circle()
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(0.85),
+                                            Color.yellow.opacity(0.45),
+                                            Color.white.opacity(0.20)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1.5
+                                )
+                        )
+                        .overlay(alignment: .top) {
+                            Ellipse()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.70), Color.white.opacity(0.18), Color.clear],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .frame(width: 76, height: 32)
+                                .padding(.top, 4)
+                        }
+                        .overlay(alignment: .bottom) {
+                            Ellipse()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.clear, Color.white.opacity(0.25)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .frame(width: 56, height: 10)
+                                .padding(.bottom, 4)
+                        }
+                }
+                .transition(.scale(scale: 0.88).combined(with: .opacity))
+            } else {
+                // قرص وإبرة بوصلة القبلة
+                ZStack {
+                    Circle()
+                        .fill(Color.green.opacity(0.04))
+                        .frame(width: 122, height: 122)
+
+                    // علامات الجهات
+                    VStack {
+                        Text("ش")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.red)
+                        Spacer()
+                        Text("ج")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(height: 114)
+
+                    HStack {
+                        Text("غ")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("ش")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(width: 114)
+
+                    // إبرة البوصلة
+                    VStack(spacing: 0) {
+                        Image(systemName: "location.north.fill")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(LinearGradient(colors: [Color.yellow, Color.green], startPoint: .top, endPoint: .bottom))
+                            .shadow(color: Color.green.opacity(0.4), radius: 4)
+                        Rectangle()
+                            .fill(LinearGradient(colors: [Color.green, Color.mint.opacity(0.2)], startPoint: .top, endPoint: .bottom))
+                            .frame(width: 2.5, height: 34)
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 6, height: 6)
+                    }
+                    .rotationEffect(.degrees(qibla.needleAngle))
+                    .animation(.spring(response: 0.35, dampingFraction: 0.75), value: qibla.needleAngle)
+
+                    // توجيه الحركة
+                    VStack {
+                        Spacer()
+                        let angle = qibla.needleAngle
+                        Text(abs(angle) <= 12 ? "اقتربت" : (angle > 0 ? "اتجه يميناً" : "اتجه يساراً"))
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(abs(angle) <= 12 ? Color.yellow : Color.green)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Color.black.opacity(0.75))
+                            .clipShape(Capsule())
+                            .padding(.bottom, 12)
+                    }
+                }
+            }
+        }
+        .frame(width: 136, height: 136)
+        .contentShape(Circle())
+        .onTapGesture {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                isQiblaActive = false
+                QiblaManager.shared.stop()
+            }
+            WKInterfaceDevice.current().play(.click)
         }
     }
 
