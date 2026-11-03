@@ -70,19 +70,39 @@ struct WatchContentView: View {
 
                 // عنوان الذكر / التطبيق
                 VStack(alignment: .trailing, spacing: 1) {
-                    Text(isQiblaActive ? "اتجاه القبلة" : sync.currentZekr)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    if isQiblaActive {
+                        Text("اتجاه القبلة")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
 
-                    Text(isQiblaActive ? (qibla.isAligned ? "محاذاة تامة" : "وجّه الساعة") : "فَاذْكُرُونِي")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(isQiblaActive && qibla.isAligned ? Color.yellow : Color.secondary)
-                        .lineLimit(1)
+                        Text(qibla.isAligned ? "محاذاة تامة" : "وجّه الساعة")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(qibla.isAligned ? Color.yellow : Color.secondary)
+                            .lineLimit(1)
+                    } else if sync.showsWatchClockCover {
+                        // عند حجب شاشة الساعة: إخفاء نوع الذكر تماماً للخصوصية التامة
+                        Text("فَاذْكُرُونِي")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                    } else {
+                        Text(sync.currentZekr)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+
+                        Text("فَاذْكُرُونِي")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Color.secondary)
+                            .lineLimit(1)
+                    }
                 }
-                .offset(y: -46)
+                .offset(y: (sync.showsWatchClockCover && !isQiblaActive) ? -38 : -46)
                 .padding(.bottom, -14)
+                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sync.showsWatchClockCover)
 
             }
             .padding(.horizontal, 4)
