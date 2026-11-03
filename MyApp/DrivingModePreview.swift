@@ -97,8 +97,8 @@ struct DrivingModePreview: View {
 
                     Spacer(minLength: 16)
 
-                    // 3. Bottom status. The safety lock has no bypass.
-                    VStack(spacing: 12) {
+                    // 3. Bottom status & confirm stop button
+                    VStack(spacing: 14) {
                         HStack(spacing: 6) {
                             Circle().fill(Color.green).frame(width: 7, height: 7)
                             Text("العدد محفوظ (\(sync.currentCount))")
@@ -110,10 +110,39 @@ struct DrivingModePreview: View {
                         .background(.ultraThinMaterial, in: Capsule())
                         .overlay(Capsule().strokeBorder(Color.teal.opacity(0.3), lineWidth: 0.5))
 
-                        Text("يعود العداد للعمل تلقائياً بعد انخفاض السرعة")
+                        // زر تأكيد الوقوف
+                        Button {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                                DrivingModeManager.shared.confirmStopped()
+                            }
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 18, weight: .bold))
+                                Text("تأكيد الوقوف والعودة للعدّ")
+                                    .font(.system(size: 16, weight: .bold))
+                            }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color.green, Color.mint],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            )
+                            .shadow(color: Color.green.opacity(0.35), radius: 10, y: 3)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 20)
+
+                        Text("يعود العداد للعمل تلقائياً عند توقف السيارة، أو اضغط للتأكيد يدوياً")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
-
+                            .multilineTextAlignment(.center)
                     }
                 }
                 .padding(.horizontal, 24)

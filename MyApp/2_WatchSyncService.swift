@@ -745,6 +745,13 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
                     "drivingLocked": self.isDrivingLocked,
                     "timestamp": Date().timeIntervalSince1970
                 ])
+            } else if message["action"] as? String == "confirmStopped" {
+                DrivingModeManager.shared.confirmStopped()
+                replyHandler([
+                    "drivingLocked": false,
+                    "confirmed": true,
+                    "timestamp": Date().timeIntervalSince1970
+                ])
             } else {
                 replyHandler(["received": true])
             }
@@ -772,6 +779,10 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         applyResetPreference(payload)
         applyClockCoverPreference(payload)
         applyWatchClockPhoto(payload)
+        if payload["action"] as? String == "confirmStopped" {
+            DrivingModeManager.shared.confirmStopped()
+            return
+        }
         if payload["action"] as? String == "refreshWatchPurchase" {
             // Connectivity is a refresh hint, never proof of payment.
             Task { await WatchPurchaseAccess.shared.refresh() }

@@ -21,6 +21,33 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
     }
 
+    /// فك القفل يدوياً من زر "تأكيد الوقوف" على الساعة وإعلام الآيفون فوراً
+    public func confirmStopped() {
+        isDrivingLocked = false
+        UserDefaults.standard.set(false, forKey: "fadhkuruni_driving_locked")
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            session.activate()
+            return
+        }
+        let payload: [String: Any] = [
+            "action": "confirmStopped",
+            "drivingLocked": false,
+            "timestamp": Date().timeIntervalSince1970
+        ]
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil, errorHandler: { _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    if session.isReachable {
+                        session.sendMessage(payload, replyHandler: nil, errorHandler: nil)
+                    }
+                }
+            })
+        }
+        try? session.updateApplicationContext(payload)
+    }
+
     private func applyDrivingLock(_ payload: [String: Any]) {
         guard let value = payload["drivingLocked"] as? Bool else { return }
         isDrivingLocked = value
