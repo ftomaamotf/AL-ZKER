@@ -29,11 +29,16 @@ struct BuiltInAdhan: Identifiable, Hashable {
     let fullFileName: String
 
     static let all: [BuiltInAdhan] = [
-        .init(id: "makkah-classic", title: "مكة — الحرم", subtitle: "تسجيل الحرم المكي (كامل 3:17 د)", fileName: "adhan-makkah-classic.caf", fullFileName: "adhan-makkah-classic-full.m4a"),
-        .init(id: "makkah-maghrib", title: "مكة — المغرب", subtitle: "أذان المغرب من الحرم (كامل 5:01 د)", fileName: "adhan-makkah-maghrib.caf", fullFileName: "adhan-makkah-maghrib-full.m4a"),
-        .init(id: "casablanca", title: "الدار البيضاء", subtitle: "مسجد الحسن الثاني (كامل 2:55 د)", fileName: "adhan-casablanca.caf", fullFileName: "adhan-casablanca-full.m4a"),
-        .init(id: "calm", title: "أذان هادئ", subtitle: "نغمة أذان واضحة وهادئة (كامل 2:54 د)", fileName: "adhan-calm.caf", fullFileName: "adhan-calm-full.m4a"),
-        .init(id: "short", title: "أذان مختصر", subtitle: "خيار قصير للتنبيه (45 ثانية)", fileName: "adhan-short.caf", fullFileName: "adhan-short-full.m4a")
+        .init(id: "makkah-classic", title: "مكة — الحرم المكي", subtitle: "أذان الحرم المكي الشريف (كامل 3:17 د)", fileName: "adhan-makkah-classic.caf", fullFileName: "adhan-makkah-classic-full.m4a"),
+        .init(id: "madinah", title: "المدينة — المسجد النبوي", subtitle: "أذان المسجد النبوي — الشيخ السريحي (كامل 4:26 د)", fileName: "adhan-madinah.caf", fullFileName: "adhan-madinah-full.m4a"),
+        .init(id: "egypt-abdulbasit", title: "مصر — الشيخ عبد الباسط", subtitle: "أذان تاريخي بصوت الشيخ عبد الباسط (كامل 3:42 د)", fileName: "adhan-egypt-abdulbasit.caf", fullFileName: "adhan-egypt-abdulbasit-full.m4a"),
+        .init(id: "quds-sham", title: "القدس والشام — تاريخي", subtitle: "تسجيل أذان شجي — صباح فخري (كامل 3:22 د)", fileName: "adhan-quds-sham.caf", fullFileName: "adhan-quds-sham-full.m4a"),
+        .init(id: "takbeerat", title: "تكبيرات العيد والحرم", subtitle: "الله أكبر كبيراً والحمد لله كثيراً (نغمة تكبيرات)", fileName: "adhan-takbeerat.caf", fullFileName: "adhan-takbeerat-full.m4a"),
+        .init(id: "makkah-maghrib", title: "مكة — أذان المغرب", subtitle: "أذان المغرب الروحاني من الحرم (كامل 5:01 د)", fileName: "adhan-makkah-maghrib.caf", fullFileName: "adhan-makkah-maghrib-full.m4a"),
+        .init(id: "casablanca", title: "الدار البيضاء — جامع الحسن الثاني", subtitle: "تسجيل الأذان المغربي الأصيل (كامل 2:55 د)", fileName: "adhan-casablanca.caf", fullFileName: "adhan-casablanca-full.m4a"),
+        .init(id: "aaqib-sweet", title: "أذان نديّ وهادئ", subtitle: "أذان عذب رخيم — القارئ عاقب عزيز (كامل 1:49 د)", fileName: "adhan-aaqib-sweet.caf", fullFileName: "adhan-aaqib-sweet-full.m4a"),
+        .init(id: "calm", title: "أذان السكينة", subtitle: "نغمة أذان هادئة جداً وواضحة (كامل 2:54 د)", fileName: "adhan-calm.caf", fullFileName: "adhan-calm-full.m4a"),
+        .init(id: "short", title: "أذان مختصر للتنبيه", subtitle: "خيار قصير للتنبيه السريع (45 ثانية)", fileName: "adhan-short.caf", fullFileName: "adhan-short-full.m4a")
     ]
 
     private static let preferencePrefix = "fadhkuruni_prayer_builtin_adhan_"
@@ -57,7 +62,7 @@ enum PrayerAlertPreference {
 
     static func mode(for prayerID: String) -> PrayerAlertMode {
         guard let value = UserDefaults.standard.string(forKey: prefix + prayerID),
-              let mode = PrayerAlertMode(rawValue: value) else { return .system }
+              let mode = PrayerAlertMode(rawValue: value) else { return .builtIn }
         return mode
     }
 
@@ -78,7 +83,10 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
     private var recorder: AVAudioRecorder?
     private var player: AVAudioPlayer?
 
-    private override init() { super.init() }
+    private override init() {
+        super.init()
+        Self.ensureBuiltInSoundsInLibraryDirectory()
+    }
 
     func hasRecording(for prayerID: String) -> Bool {
         FileManager.default.fileExists(atPath: recordingURL(for: prayerID).path)
@@ -133,8 +141,17 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
     func playBuiltInAdhan(_ adhan: BuiltInAdhan, full: Bool = false) {
         stopPlayback()
         let targetName = full ? adhan.fullFileName : adhan.fileName
+        let nsTarget = targetName as NSString
+        let base = nsTarget.deletingPathExtension
+        let ext = nsTarget.pathExtension
+        let libraryURL = Self.soundsDirectory.appendingPathComponent(targetName)
+        let fallbackLibraryURL = Self.soundsDirectory.appendingPathComponent(adhan.fileName)
+
         guard let url = Bundle.main.url(forResource: targetName, withExtension: nil)
-            ?? Bundle.main.url(forResource: adhan.fileName, withExtension: nil) else {
+            ?? Bundle.main.url(forResource: base, withExtension: ext)
+            ?? Bundle.main.url(forResource: adhan.fileName, withExtension: nil)
+            ?? (FileManager.default.fileExists(atPath: libraryURL.path) ? libraryURL : nil)
+            ?? (FileManager.default.fileExists(atPath: fallbackLibraryURL.path) ? fallbackLibraryURL : nil) else {
             message = "تعذر العثور على ملف الأذان. أعد تثبيت التطبيق ثم جرّب مرة أخرى."
             return
         }
@@ -330,5 +347,26 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
 
     private nonisolated static func recordingURLs(for prayerID: String) -> [URL] {
         supportedExtensions.map { soundsDirectory.appendingPathComponent("adhan-\(prayerID).\($0)") }
+    }
+
+    /// نسخ جميع أصوات الأذان والتنبيهات المدمجة إلى مجلد Library/Sounds داخل الحاوية
+    /// لضمان تعرف نظام iOS (SpringBoard) فوراً على ملف الصوت وتشغيله عند وصول الإشعار والشاشة مقفلة
+    public nonisolated static func ensureBuiltInSoundsInLibraryDirectory() {
+        let fileManager = FileManager.default
+        let soundsDir = soundsDirectory
+        try? fileManager.createDirectory(at: soundsDir, withIntermediateDirectories: true)
+
+        for adhan in BuiltInAdhan.all {
+            for ext in ["caf", "wav"] {
+                let filename = (ext == "caf") ? adhan.fileName : adhan.fileName.replacingOccurrences(of: ".caf", with: ".wav")
+                let destURL = soundsDir.appendingPathComponent(filename)
+                let base = (filename as NSString).deletingPathExtension
+                let bundleURL = Bundle.main.url(forResource: base, withExtension: ext)
+                    ?? Bundle.main.url(forResource: filename, withExtension: nil)
+                if let bundleURL, !fileManager.fileExists(atPath: destURL.path) {
+                    try? fileManager.copyItem(at: bundleURL, to: destURL)
+                }
+            }
+        }
     }
 }

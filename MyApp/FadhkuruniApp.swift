@@ -7,6 +7,7 @@ struct FadhkuruniApp: App {
     init() {
         // ضمان تفعيل مستلم الإشعارات فور إقلاع التطبيق لعرض البانر وتشغيل الصوت حتى والتطبيق مفتوح
         _ = NotificationManager.shared
+        PrayerAdhanRecorder.ensureBuiltInSoundsInLibraryDirectory()
     }
 
     var body: some Scene {

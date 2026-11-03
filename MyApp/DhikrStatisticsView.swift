@@ -118,6 +118,7 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
             cancelPrayerReminders()
             return
         }
+        PrayerAdhanRecorder.ensureBuiltInSoundsInLibraryDirectory()
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         schedulePrayerReminders(UNUserNotificationCenter.current())
     }
