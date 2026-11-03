@@ -29,6 +29,9 @@ struct WatchContentView: View {
     // توقيت آخر تسبيحة لإلغاء وتفادي أي هزة ثانية متكررة عند تحريك الأصابع
     @State private var lastIncrementTime: Date = .distantPast
 
+    // تفاعل حركة وانضغاط زر الحجب تحت الإصبع أثناء الضغط المطول
+    @State private var isPressingCover = false
+
     var body: some View {
         VStack(spacing: 2) {
             // 1. الشريط العلوي: زر القبلة بأعلى اليمين + اسم الذكر
@@ -299,15 +302,36 @@ struct WatchContentView: View {
         }
         .environment(\.layoutDirection, .leftToRight)
         .frame(width: 136, height: 136)
+        // حركة وانضغاط فيزيائي للدائرة تحت الإصبع أثناء الضغط المطول
+        .scaleEffect(isPressingCover ? 0.90 : 1.0)
+        .offset(y: isPressingCover ? 3.0 : 0)
+        .shadow(color: Color.mint.opacity(isPressingCover ? 0.6 : 0), radius: isPressingCover ? 14 : 0)
+        .animation(.spring(response: 0.28, dampingFraction: 0.65), value: isPressingCover)
         .contentShape(Circle())
         .onTapGesture {
             incrementCount()
         }
         .onLongPressGesture(minimumDuration: 0.45) {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) {
+                isPressingCover = false
                 sync.setWatchClockCover(!sync.showsWatchClockCover)
             }
-            WKInterfaceDevice.current().play(.click)
+            WKInterfaceDevice.current().play(.directionUp)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                WKInterfaceDevice.current().play(.click)
+            }
+        } onPressingChanged: { isPressing in
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
+                isPressingCover = isPressing
+            }
+            if isPressing {
+                WKInterfaceDevice.current().play(.click)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                    if isPressingCover {
+                        WKInterfaceDevice.current().play(.directionDown)
+                    }
+                }
+            }
         }
     }
 

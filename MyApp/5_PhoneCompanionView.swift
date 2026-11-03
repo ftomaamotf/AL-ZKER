@@ -343,7 +343,11 @@ public struct PhoneCompanionView: View {
     // Keep rapid intentional tasbih responsive while ignoring a duplicate callback.
     @State private var lastPhoneIncrementTime: Date = .distantPast
     @Environment(\.scenePhase) private var scenePhase
-    
+
+    // تفاعل حركة وانضغاط زر الحجب تحت الإصبع أثناء الضغط المطول
+    @State private var isPressingCoverOnPhone: Bool = false
+    @State private var isPressingToolbarCover: Bool = false
+
     public init() {}
     
     public var body: some View {
@@ -576,18 +580,30 @@ public struct PhoneCompanionView: View {
 
                         if !isButtonsLocked {
                             Button {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
                                     sync.setWatchClockCover(!sync.showsWatchClockCover)
                                 }
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             } label: {
                                 watchClockCoverButton
                             }
                             .disabled(showQiblaInCard || showPrayerTimesInCard)
                             .opacity((showQiblaInCard || showPrayerTimesInCard) ? 0.35 : 1)
                             .simultaneousGesture(
-                                LongPressGesture(minimumDuration: 0.55)
+                                LongPressGesture(minimumDuration: 0.45)
                                     .onEnded { _ in isPickingWatchPhoto = true }
+                            )
+                            .simultaneousGesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { _ in
+                                        if !isPressingToolbarCover {
+                                            isPressingToolbarCover = true
+                                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                        }
+                                    }
+                                    .onEnded { _ in
+                                        isPressingToolbarCover = false
+                                    }
                             )
                         }
                     }
@@ -691,6 +707,9 @@ public struct PhoneCompanionView: View {
                 .foregroundStyle(sync.showsWatchClockCover ? .white : Color.green)
                 .shadow(color: .white.opacity(0.5), radius: 2)
         }
+        .scaleEffect(isPressingToolbarCover ? 0.84 : 1.0)
+        .offset(y: isPressingToolbarCover ? 2.0 : 0)
+        .animation(.spring(response: 0.25, dampingFraction: 0.65), value: isPressingToolbarCover)
         .accessibilityLabel(sync.showsWatchClockCover ? "إظهار رقم عداد الساعة" : "عرض الوقت بدل رقم عداد الساعة")
     }
 
@@ -840,12 +859,29 @@ public struct PhoneCompanionView: View {
             }
             .frame(width: 190, height: 190)
             .environment(\.layoutDirection, .leftToRight)
+            .scaleEffect(isPressingCoverOnPhone ? 0.91 : 1.0)
+            .offset(y: isPressingCoverOnPhone ? 3.5 : 0)
+            .shadow(color: Color.mint.opacity(isPressingCoverOnPhone ? 0.45 : 0), radius: isPressingCoverOnPhone ? 18 : 0)
+            .animation(.spring(response: 0.28, dampingFraction: 0.65), value: isPressingCoverOnPhone)
             .contentShape(Circle())
-            .onLongPressGesture(minimumDuration: 0.5) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            .onLongPressGesture(minimumDuration: 0.45) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) {
+                    isPressingCoverOnPhone = false
                     sync.setWatchClockCover(!sync.showsWatchClockCover)
                 }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+            } onPressingChanged: { isPressing in
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
+                    isPressingCoverOnPhone = isPressing
+                }
+                if isPressing {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                        if isPressingCoverOnPhone {
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        }
+                    }
+                }
             }
             Text("\(max(0, sync.target - sync.currentCount).formatted()) مرات لإكمال الهدف")
                 .font(.caption)
