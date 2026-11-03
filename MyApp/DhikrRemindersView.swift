@@ -10,16 +10,18 @@ struct DhikrCustomReminder: Identifiable, Codable, Hashable {
 
 /// Notification controls intentionally live separately from statistics.
 struct DhikrRemindersView: View {
+    @ObservedObject private var sync = WatchSyncService.shared
     @State private var customReminders = DhikrCustomReminder.loadAll()
     @State private var editor: DhikrCustomReminder?
+    @State private var showStartFromTodayConfirmation = false
+    @State private var resetErrorMessage: String?
 
     var body: some View {
         Form {
-            Section("ملخص اليوم") {
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("ملخص اليوم")
-                    Text("يصل تلقائياً عند دخول الظلام، ويقارن عدد أذكار اليوم بالبارحة اعتماداً على موقعك.")
-                        .font(.caption).foregroundStyle(.secondary)
+            Section("ملخصات الذكر") {
+                summaryRow(title: sync.currentZekr, symbol: "sun.max.fill", detail: selectedDhikrComparison)
+                Button("بدء الإحصاءات من اليوم", role: .destructive) {
+                    showStartFromTodayConfirmation = true
                 }
             }
 
@@ -57,6 +59,26 @@ struct DhikrRemindersView: View {
         }
         .navigationTitle("التذكيرات")
         .task { DhikrSummaryNotificationScheduler.shared.refresh() }
+        .alert("بدء الإحصاءات من اليوم؟", isPresented: $showStartFromTodayConfirmation) {
+            Button("إلغاء", role: .cancel) {}
+            Button("بدء جديد", role: .destructive) {
+                Task {
+                    switch await BiometricStatisticsDeletionAuthorizer.authorize() {
+                    case .success:
+                        sync.clearStatistics()
+                    case .failure(let failure):
+                        resetErrorMessage = failure.message
+                    }
+                }
+            }
+        } message: {
+            Text("سيُحذف سجل أرقام الإحصاءات القديم فقط، ويبدأ احتساب اليوم من الصفر. لن تُحذف الأذكار أو الأهداف أو العداد الحالي.")
+        }
+        .alert("لم يتم بدء الإحصاءات الجديدة", isPresented: Binding(get: { resetErrorMessage != nil }, set: { if !$0 { resetErrorMessage = nil } })) {
+            Button("حسناً", role: .cancel) {}
+        } message: {
+            Text(resetErrorMessage ?? "")
+        }
         .sheet(item: $editor) { selectedReminder in
             DhikrCustomReminderEditor(reminder: selectedReminder) { savedReminder in
                 if let index = customReminders.firstIndex(where: { $0.id == savedReminder.id }) {
@@ -82,6 +104,37 @@ struct DhikrRemindersView: View {
     private func timeText(_ minutes: Int) -> String {
         let date = Calendar.current.startOfDay(for: Date()).addingTimeInterval(Double(minutes) * 60)
         return date.formatted(date: .omitted, time: .shortened)
+    }
+
+    private var selectedDhikrComparison: String {
+        comparison(
+            current: sync.statistics.totalToday(for: sync.currentZekr),
+            previous: sync.statistics.totalYesterday(for: sync.currentZekr),
+            period: "البارحة",
+            label: "اليوم"
+        )
+    }
+
+    private func comparison(current: Int, previous: Int, period: String, label: String) -> String {
+        guard previous > 0 else { return "عدد الأذكار \(label): \(current)." }
+        if current > previous { return "عدد الأذكار \(label): \(current)، أكثر من \(period) بـ \(current - previous)." }
+        if current < previous { return "عدد الأذكار \(label): \(current)، أقل من \(period) بـ \(previous - current)." }
+        return "عدد الأذكار \(label): \(current)، مثل \(period)."
+    }
+
+    private func summaryRow(title: String, symbol: String, detail: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .foregroundStyle(.green)
+                .frame(width: 34, height: 34)
+                .background(.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.body.weight(.medium))
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 3)
     }
 }
 

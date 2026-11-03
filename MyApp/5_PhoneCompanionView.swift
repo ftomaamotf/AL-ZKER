@@ -7,6 +7,9 @@ import WatchConnectivity
 import SwiftUI
 import AVFoundation
 import AudioToolbox
+import PhotosUI
+import UIKit
+import UniformTypeIdentifiers
 
 // MARK: - محاكي توليد النغمات فائقة النقاء (WAV Synthesizer)
 public final class SoundSynthesizer {
@@ -248,7 +251,7 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
     }
     
     public func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .list])
+        completionHandler([.banner, .list, .sound])
     }
 }
 
@@ -281,7 +284,11 @@ public struct PhoneCompanionView: View {
     @ObservedObject private var sync = WatchSyncService.shared
     @State private var selectedTab = 0
     @State private var showQiblaInCard = false
+    @State private var showPrayerTimesInCard = false
+    @State private var isPickingWatchPhoto = false
+    @State private var selectedWatchPhotoItem: PhotosPickerItem?
     @ObservedObject private var qibla = PhoneQiblaManager.shared
+    @ObservedObject private var prayerTimes = PrayerTimesManager.shared
     
     // Add/Edit State
     @State private var showAddSheet = false
@@ -295,6 +302,7 @@ public struct PhoneCompanionView: View {
     @State private var pendingDeletion: [ZekrItem] = []
     @State private var showDeleteConfirmation = false
     @State private var showResetAlert = false
+    @State private var azkarRestoreErrorMessage: String?
     @State private var showCounterResetConfirmation = false
     @State private var pendingCounterReset: ZekrItem?
     @AppStorage("fadhkuruni_buttons_locked") private var isButtonsLocked = false
@@ -320,6 +328,8 @@ public struct PhoneCompanionView: View {
                     azkarTabView
                 case 2:
                     settingsTabView
+                case 3:
+                    NavigationStack { DhikrRemindersView() }
                 default:
                     counterTabView
                 }
@@ -383,6 +393,9 @@ public struct PhoneCompanionView: View {
                 if showQiblaInCard {
                     PhoneQiblaManager.shared.start()
                 }
+                if showPrayerTimesInCard {
+                    PrayerTimesManager.shared.refresh()
+                }
             } else {
                 if showQiblaInCard {
                     PhoneQiblaManager.shared.stop()
@@ -397,9 +410,10 @@ public struct PhoneCompanionView: View {
             }
         }
         .onChange(of: selectedTab) { _, newTab in
-            if newTab != 0 && showQiblaInCard {
+            if newTab != 0 && (showQiblaInCard || showPrayerTimesInCard) {
                 withAnimation {
                     showQiblaInCard = false
+                    showPrayerTimesInCard = false
                     PhoneQiblaManager.shared.stop()
                 }
             }
@@ -415,6 +429,26 @@ public struct PhoneCompanionView: View {
         .onChange(of: sync.currentZekr) { _, _ in
             hasAlertedForCurrentTarget = (sync.currentCount >= sync.target && sync.target > 0)
         }
+        .photosPicker(isPresented: $isPickingWatchPhoto, selection: $selectedWatchPhotoItem, matching: .images)
+        .onChange(of: selectedWatchPhotoItem) { _, item in
+            guard let item else { return }
+            Task {
+                guard let sourceData = try? await item.loadTransferable(type: Data.self),
+                      let compactData = compactWatchPhoto(from: sourceData) else { return }
+                sync.setWatchClockPhoto(compactData)
+                sync.setWatchClockCover(true)
+            }
+        }
+    }
+
+    private func compactWatchPhoto(from data: Data) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let maximumEdge: CGFloat = 280
+        let scale = min(1, maximumEdge / max(image.size.width, image.size.height))
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let resized = renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+        return resized.jpegData(compressionQuality: 0.62)
     }
     
     // MARK: - Counter Tab
@@ -427,15 +461,18 @@ public struct PhoneCompanionView: View {
                     
                     // نوع الذكر الحالي أو عنوان القبلة
                     VStack(spacing: 6) {
-                        Text(showQiblaInCard ? "بوصلة القبلة الشريفة" : "الذكر الحالي")
+                        Text(showPrayerTimesInCard ? "مواقيت الصلاة" : (showQiblaInCard ? "بوصلة القبلة الشريفة" : "الذكر الحالي"))
                             .font(.subheadline)
                             .foregroundColor(isButtonsLocked ? Color.black.opacity(0.5) : .secondary)
                         
-                        Text(showQiblaInCard ? "وجّه الهاتف نحو الكعبة" : sync.currentZekr)
-                            .font(.system(size: showQiblaInCard ? 24 : 28, weight: .bold))
+                        Text(showPrayerTimesInCard ? "بحسب موقعك اليوم" : (showQiblaInCard ? "وجّه الهاتف نحو الكعبة" : sync.currentZekr))
+                            .font(.system(size: (showQiblaInCard || showPrayerTimesInCard) ? 24 : 28, weight: .bold))
                             .foregroundColor(isButtonsLocked ? .black : .primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.30)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
+                            .frame(height: 34)
                     }
                     
                     Spacer(minLength: 12)
@@ -447,12 +484,13 @@ public struct PhoneCompanionView: View {
                     
                     // إرشاد النقر على الشاشة
                     HStack(spacing: 6) {
-                        Image(systemName: showQiblaInCard ? "safari.fill" : "hand.tap.fill")
+                        Image(systemName: showPrayerTimesInCard ? "clock.fill" : (showQiblaInCard ? "safari.fill" : "hand.tap.fill"))
                             .font(.footnote)
-                        Text(showQiblaInCard ? "المس زر القبلة بأعلى الشاشة للعودة للعدّاد" : "المس في أي مكان بالشاشة للتسبيح")
+                        Text(showPrayerTimesInCard ? "المس زر المواقيت بأعلى الشاشة للعودة للعدّاد" : (showQiblaInCard ? "المس زر القبلة بأعلى الشاشة للعودة للعدّاد" : "المس في أي مكان بالشاشة للتسبيح"))
                             .font(.subheadline)
                     }
                     .foregroundColor(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
+                    .offset(y: 10)
                     
                     Spacer(minLength: 84)
                 }
@@ -462,7 +500,7 @@ public struct PhoneCompanionView: View {
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onEnded { value in
-                            if showQiblaInCard {
+                            if showQiblaInCard || showPrayerTimesInCard {
                                 return
                             }
                             let h = value.translation.width
@@ -489,8 +527,8 @@ public struct PhoneCompanionView: View {
                 bottomControlBar
                     .padding(.horizontal, 16)
                     .padding(.bottom, 6)
-                    .opacity(showQiblaInCard ? 0 : 1)
-                    .allowsHitTesting(!showQiblaInCard)
+                    .opacity((showQiblaInCard || showPrayerTimesInCard) ? 0 : 1)
+                    .allowsHitTesting(!(showQiblaInCard || showPrayerTimesInCard))
             }
             .background(
                 (isButtonsLocked ? Color.white : Color(UIColor.systemBackground))
@@ -502,37 +540,84 @@ public struct PhoneCompanionView: View {
             .toolbarBackground(isButtonsLocked ? .visible : .automatic, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    NavigationLink { PurchasedWatchSettingsGate { WatchGuideView() } } label: {
-                        Image(systemName: "applewatch")
-                            .accessibilityLabel("فاذكروني على الساعة — صور وطريقة الاستخدام")
+                    HStack(spacing: 8) {
+                        NavigationLink { PurchasedWatchSettingsGate { WatchGuideView() } } label: {
+                            Image(systemName: "applewatch")
+                                .accessibilityLabel("فاذكروني على الساعة — صور وطريقة الاستخدام")
+                        }
+
+                        if !isButtonsLocked {
+                            Button {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    sync.setWatchClockCover(!sync.showsWatchClockCover)
+                                }
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                watchClockCoverButton
+                            }
+                            .disabled(showQiblaInCard || showPrayerTimesInCard)
+                            .opacity((showQiblaInCard || showPrayerTimesInCard) ? 0.35 : 1)
+                            .simultaneousGesture(
+                                LongPressGesture(minimumDuration: 0.55)
+                                    .onEnded { _ in isPickingWatchPhoto = true }
+                            )
+                        }
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if !isButtonsLocked {
-                        Button {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                showQiblaInCard.toggle()
-                                if showQiblaInCard {
-                                    PhoneQiblaManager.shared.start()
-                                } else {
-                                    PhoneQiblaManager.shared.stop()
+                        HStack(spacing: 10) {
+                            Button {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    showPrayerTimesInCard = false
+                                    showQiblaInCard.toggle()
+                                    if showQiblaInCard {
+                                        PhoneQiblaManager.shared.start()
+                                    } else {
+                                        PhoneQiblaManager.shared.stop()
+                                    }
                                 }
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(showQiblaInCard ? Color.green : Color.green.opacity(0.14))
+                                        .frame(width: 34, height: 34)
+                                        .overlay(
+                                            Circle()
+                                                .strokeBorder(Color.green.opacity(0.35), lineWidth: 0.8)
+                                        )
+                                    Image(systemName: "safari.fill")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundStyle(showQiblaInCard ? Color.black : Color.green)
+                                }
+                                .accessibilityLabel(showQiblaInCard ? "العودة للعدّاد" : "اتجاه القبلة")
                             }
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(showQiblaInCard ? Color.green : Color.green.opacity(0.14))
-                                    .frame(width: 34, height: 34)
-                                    .overlay(
-                                        Circle()
-                                            .strokeBorder(Color.green.opacity(0.35), lineWidth: 0.8)
-                                    )
-                                Image(systemName: "safari.fill")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(showQiblaInCard ? Color.black : Color.green)
+
+                            Button {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    if showPrayerTimesInCard {
+                                        showPrayerTimesInCard = false
+                                    } else {
+                                        showQiblaInCard = false
+                                        PhoneQiblaManager.shared.stop()
+                                        showPrayerTimesInCard = true
+                                        PrayerTimesManager.shared.refresh()
+                                    }
+                                }
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(showPrayerTimesInCard ? Color.green : Color.green.opacity(0.14))
+                                        .frame(width: 34, height: 34)
+                                        .overlay(Circle().strokeBorder(Color.green.opacity(0.35), lineWidth: 0.8))
+                                    Image(systemName: "clock.fill")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(showPrayerTimesInCard ? Color.black : Color.green)
+                                }
+                                .accessibilityLabel(showPrayerTimesInCard ? "العودة للعدّاد" : "مواقيت الصلاة")
                             }
-                            .accessibilityLabel(showQiblaInCard ? "العودة للعدّاد" : "اتجاه القبلة")
                         }
                     }
                 }
@@ -540,6 +625,47 @@ public struct PhoneCompanionView: View {
         }
     }
     
+    private var watchClockCoverButton: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: sync.showsWatchClockCover
+                            ? [Color(red: 0.10, green: 0.88, blue: 0.64), Color(red: 0.02, green: 0.45, blue: 0.31)]
+                            : [Color.mint.opacity(0.36), Color.green.opacity(0.13)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 42, height: 42)
+                .overlay {
+                    Circle()
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [.white.opacity(0.82), Color.mint.opacity(0.35), .white.opacity(0.16)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                }
+                .shadow(color: Color.mint.opacity(sync.showsWatchClockCover ? 0.34 : 0.16), radius: 8, y: 4)
+            Circle()
+                .fill(.white.opacity(sync.showsWatchClockCover ? 0.17 : 0.27))
+                .frame(width: 29, height: 29)
+                .blur(radius: 0.4)
+            Image(systemName: "sparkle")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.white.opacity(0.9))
+                .offset(x: -11, y: -11)
+            Image(systemName: "diamond.fill")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(sync.showsWatchClockCover ? .white : Color.green)
+                .shadow(color: .white.opacity(0.5), radius: 2)
+        }
+        .accessibilityLabel(sync.showsWatchClockCover ? "إظهار رقم عداد الساعة" : "عرض الوقت بدل رقم عداد الساعة")
+    }
+
     // MARK: - بطاقة العداد والهدف وخلفيتها
     private var counterCardBackground: some View {
         RoundedRectangle(cornerRadius: 38, style: .continuous)
@@ -558,7 +684,9 @@ public struct PhoneCompanionView: View {
 
     private var counterCardView: some View {
         Group {
-            if showQiblaInCard {
+            if showPrayerTimesInCard {
+                prayerTimesCardContent
+            } else if showQiblaInCard {
                 qiblaCardContent
             } else {
                 normalCounterCardContent
@@ -566,8 +694,98 @@ public struct PhoneCompanionView: View {
         }
     }
 
+    private var prayerTimesCardContent: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Label("مواقيت الصلاة", systemImage: "clock.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.green)
+                Spacer()
+                if prayerTimes.isLoading {
+                    ProgressView().controlSize(.small)
+                } else if let next = prayerTimes.times.first(where: { $0.date > Date() }) {
+                    Text("القادمة: \(next.title)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 10)
+
+            if prayerTimes.times.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: prayerTimes.isLoading ? "location.circle" : "location.slash")
+                        .font(.system(size: 44, weight: .light))
+                        .foregroundStyle(.green)
+                    Text(prayerTimes.statusMessage)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("تحديث الموقع") { PrayerTimesManager.shared.refresh() }
+                        .buttonStyle(.bordered)
+                        .tint(.green)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    ForEach(prayerTimes.times) { prayer in
+                        HStack(spacing: 7) {
+                            Image(systemName: prayer.symbol)
+                                .font(.caption)
+                                .foregroundStyle(prayer.date > Date() ? .green : .secondary)
+                                .frame(width: 17)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(prayer.title).font(.caption.weight(.semibold))
+                                Text(prayer.date.formatted(date: .omitted, time: .shortened))
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 8)
+                        .background(prayer.date > Date() ? Color.green.opacity(0.09) : Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    }
+                }
+                Text(prayerTimes.statusMessage)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+                NavigationLink {
+                    PrayerTimeAdjustmentsView()
+                } label: {
+                    Label("التعديلات اليدوية", systemImage: "slider.horizontal.3")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 6)
+                        .background(Color.green.opacity(0.10), in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    showPrayerTimesInCard = false
+                }
+            } label: {
+                Label("العودة لعدّاد التسبيح", systemImage: "arrow.uturn.backward")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 5)
+                    .background(Color.green.opacity(0.10), in: Capsule())
+            }
+        }
+        .padding(.vertical, 18)
+        .frame(maxWidth: .infinity, minHeight: 340, maxHeight: 340, alignment: .top)
+        .background(counterCardBackground)
+        .padding(.horizontal, 16)
+    }
+
     private var normalCounterCardContent: some View {
         VStack(spacing: 8) {
+            // مساحة ثابتة تطابق شريط معلومات القبلة، فتظل الدائرتان في الموضع نفسه.
+            Color.clear.frame(height: 16)
             ZStack {
                 Circle().stroke(Color.green.opacity(0.10), lineWidth: 7)
                 Circle()
@@ -590,6 +808,7 @@ public struct PhoneCompanionView: View {
                         .minimumScaleFactor(0.8)
                 }
                 .padding(20)
+
             }
             .frame(width: 190, height: 190)
             .environment(\.layoutDirection, .leftToRight)
@@ -615,7 +834,7 @@ public struct PhoneCompanionView: View {
                 .accessibilityHidden(!isButtonsLocked)
         }
         .padding(.vertical, 24)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 340, maxHeight: 340, alignment: .top)
         .background(counterCardBackground)
         .padding(.horizontal, 16)
     }
@@ -769,18 +988,25 @@ public struct PhoneCompanionView: View {
                         }
                         .frame(width: 166)
 
-                        // إبرة البوصلة الدوارة
+                        // إبرة قبلة زجاجية — تدويرها يبقى مرتبطاً بالاتجاه الحقيقي للقبلة.
                         VStack(spacing: 0) {
-                            Image(systemName: "location.north.fill")
-                                .font(.system(size: 32, weight: .bold))
-                                .foregroundStyle(LinearGradient(colors: [Color(red: 0.98, green: 0.75, blue: 0.14), Color.green], startPoint: .top, endPoint: .bottom))
-                                .shadow(color: Color.green.opacity(0.4), radius: 5)
-                            Rectangle()
-                                .fill(LinearGradient(colors: [Color.green, Color.mint.opacity(0.2)], startPoint: .top, endPoint: .bottom))
-                                .frame(width: 3.5, height: 48)
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 8, height: 8)
+                            ZStack {
+                                Image(systemName: "location.north.fill")
+                                    .font(.system(size: 33, weight: .bold))
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [.white.opacity(0.97), .mint.opacity(0.9), .green.opacity(0.94)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                Image(systemName: "location.north.fill")
+                                    .font(.system(size: 33, weight: .bold))
+                                    .foregroundStyle(.white.opacity(0.38))
+                                    .blur(radius: 0.8)
+                                    .offset(x: -1.2, y: -1.2)
+                            }
+                            .shadow(color: .green.opacity(0.45), radius: 8, y: 3)
                         }
                         .rotationEffect(.degrees(qibla.needleAngle))
                         .animation(.spring(response: 0.35, dampingFraction: 0.75), value: qibla.needleAngle)
@@ -843,7 +1069,7 @@ public struct PhoneCompanionView: View {
             .padding(.top, 2)
         }
         .padding(.vertical, 18)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 340, maxHeight: 340, alignment: .top)
         .background(counterCardBackground)
         .padding(.horizontal, 16)
     }
@@ -858,10 +1084,8 @@ public struct PhoneCompanionView: View {
                 .frame(maxWidth: .infinity)
 
                 Button {
-                    if sync.currentCount > 0 {
-                        sync.sendSyncPayload(count: sync.currentCount - 1, zekr: sync.currentZekr, target: sync.target)
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    }
+                    sync.decrementCurrentZekr()
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 } label: {
                     counterControlLabel(title: "إنقاص", symbol: "minus", tint: .red)
                 }
@@ -919,7 +1143,7 @@ public struct PhoneCompanionView: View {
         .contentShape(Rectangle())
     }
 
-    // MARK: - شريط التبويبات السفلي (العداد - الأذكار والأهداف - إعدادات الساعة)
+    // MARK: - شريط التبويبات السفلي
     private var customBottomTabBar: some View {
         HStack(spacing: 0) {
             // 1. زر العداد
@@ -957,7 +1181,25 @@ public struct PhoneCompanionView: View {
             }
             .buttonStyle(.plain)
             
-            // 3. زر الإعدادات
+            // 3. زر التذكيرات
+            Button {
+                selectedTab = 3
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                VStack(spacing: 4) {
+                    Image(systemName: "bell.badge.fill")
+                        .font(.system(size: 20, weight: selectedTab == 3 ? .bold : .regular))
+                    Text("التذكيرات")
+                        .font(.system(size: 11, weight: selectedTab == 3 ? .bold : .medium))
+                }
+                .accessibilityLabel("التذكيرات")
+                .foregroundColor(selectedTab == 3 ? .green : .secondary)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            // 4. زر الإعدادات
             Button {
                 selectedTab = 2
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -1207,10 +1449,25 @@ public struct PhoneCompanionView: View {
             .alert("استعادة الأذكار الافتراضية", isPresented: $showResetAlert) {
                 Button("إلغاء", role: .cancel) {}
                 Button("استعادة", role: .destructive) {
-                    sync.resetToDefaultAzkar()
+                    Task {
+                        switch await BiometricStatisticsDeletionAuthorizer.authorize(
+                            reason: "تأكيد استعادة الأذكار الافتراضية",
+                            failureMessage: "لم يتم تأكيد البصمة، لذلك لم تُستعد الأذكار."
+                        ) {
+                        case .success:
+                            sync.resetToDefaultAzkar()
+                        case .failure(let failure):
+                            azkarRestoreErrorMessage = failure.message
+                        }
+                    }
                 }
             } message: {
                 Text("هل تريد بالتأكيد استعادة قائمة الأذكار المدمجة الأصلية وحذف الأذكار المخصصة؟")
+            }
+            .alert("لم تتم الاستعادة", isPresented: Binding(get: { azkarRestoreErrorMessage != nil }, set: { if !$0 { azkarRestoreErrorMessage = nil } })) {
+                Button("حسناً", role: .cancel) {}
+            } message: {
+                Text(azkarRestoreErrorMessage ?? "")
             }
         }
     }
@@ -1241,8 +1498,8 @@ public struct PhoneCompanionView: View {
                             Text("وضع أمان")
                                 .font(.body.weight(.medium))
                             Text(sync.isDrivingLocked
-                                 ? "التطبيق والساعة متوقفان حتى تتوقف السيارة"
-                                 : "عند تحرّك السيارة، يتوقف التطبيق على الآيفون والساعة تلقائياً، وعند توقفها يعودان إلى العمل.")
+                                 ? "التطبيق والساعة متوقفان أثناء القيادة"
+                                 : "يتوقف التسبيح على الآيفون والساعة تلقائياً أثناء القيادة، ويعود بعد انخفاض السرعة.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -1262,9 +1519,6 @@ public struct PhoneCompanionView: View {
                         }
                         else { TapFeedback.shared.stop() }
                     }
-                    NavigationLink { DhikrRemindersView() } label: {
-                        settingsLabel("التذكيرات", subtitle: "ملخصات الذكر وأوقات التذكير", icon: "bell.badge")
-                    }
                     NavigationLink { TapFeedbackSettingsView() } label: {
                         settingsLabel("تنبيه الضغطات", subtitle: "الصوت والاهتزاز", icon: "hand.tap")
                     }
@@ -1273,6 +1527,14 @@ public struct PhoneCompanionView: View {
                             .navigationTitle("تنبيهات الأهداف")
                     } label: {
                         settingsLabel("تنبيهات الأهداف", subtitle: "تنبيه إكمال الذكر على الآيفون", icon: "bell.badge")
+                    }
+                }
+                Section("مواقيت الصلاة") {
+                    NavigationLink { PrayerTimeAdjustmentsView() } label: {
+                        settingsLabel("التعديلات اليدوية", subtitle: "تقديم أو تأخير مواقيت الصلاة بالدقائق", icon: "clock.arrow.circlepath")
+                    }
+                    NavigationLink { PrayerAdhanSettingsView() } label: {
+                        settingsLabel("أذان كل صلاة", subtitle: "سجّل أذاناً خاصاً لكل وقت", icon: "mic.circle.fill")
                     }
                 }
                 Section {
@@ -1351,6 +1613,7 @@ public struct PhoneCompanionView: View {
                             Section("الدعم والمساعدة") { SupportLink() }
                             Section("الخصوصية") {
                                 NavigationLink("سياسة الخصوصية") { PrivacyPolicyView() }
+                                NavigationLink("تراخيص أصوات الأذان") { AdhanAttributionsView() }
                             }
                             aboutSettings
                         }.navigationTitle("الدعم والخصوصية")
@@ -1555,13 +1818,6 @@ public struct PhoneCompanionView: View {
                                 .font(.subheadline)
                         }
                     }
-                    
-                    HStack {
-                        Text("الأذكار المسجلة للساعة")
-                        Spacer()
-                        Text("\(sync.azkarList.count)")
-                            .foregroundColor(.secondary)
-                    }
                 }
                 
     }
@@ -1589,6 +1845,326 @@ public struct PhoneCompanionView: View {
                     }
                 }
     }
+}
+
+enum PrayerTimeAdjustmentStore {
+    private static let prefix = "fadhkuruni_prayer_adjustment_"
+
+    static func offset(for identifier: String) -> Int {
+        UserDefaults.standard.integer(forKey: prefix + identifier)
+    }
+
+    static func display(_ minutes: Int) -> String {
+        guard minutes != 0 else { return "0 دقيقة" }
+        let direction = minutes > 0 ? "تأخير" : "تقديم"
+        return "\(direction) \(abs(minutes)) دقيقة"
+    }
+}
+
+private struct PrayerTimeAdjustmentsView: View {
+    @AppStorage("fadhkuruni_prayer_adjustment_fajr") private var fajr = 0
+    @AppStorage("fadhkuruni_prayer_adjustment_sunrise") private var sunrise = 0
+    @AppStorage("fadhkuruni_prayer_sunrise_duration") private var sunriseDuration = 10
+    @AppStorage("fadhkuruni_prayer_adjustment_dhuhr") private var dhuhr = 0
+    @AppStorage("fadhkuruni_prayer_adjustment_asr") private var asr = 0
+    @AppStorage("fadhkuruni_prayer_adjustment_maghrib") private var maghrib = 0
+    @AppStorage("fadhkuruni_prayer_adjustment_isha") private var isha = 0
+
+    var body: some View {
+        List {
+            Section {
+                adjustmentLink("تعديل الفجر", value: $fajr)
+                adjustmentLink("تعديل الشروق", value: $sunrise)
+                NavigationLink {
+                    SunriseDurationEditor(duration: $sunriseDuration)
+                } label: {
+                    adjustmentRow(title: "مدة شروق الشمس", detail: "(sunriseDuration) دقيقة")
+                }
+                adjustmentLink("تعديل الظهر", value: $dhuhr)
+                adjustmentLink("تعديل العصر", value: $asr)
+                adjustmentLink("تعديل المغرب", value: $maghrib)
+                adjustmentLink("تعديل العشاء", value: $isha)
+            } footer: {
+                Text("التقديم يجعل الموعد أبكر، والتأخير يجعله لاحقاً. تُحفظ اختياراتك على هذا الآيفون وتُستخدم أيضاً عند جدولة تنبيهات الصلاة.")
+            }
+        }
+        .navigationTitle("التعديلات اليدوية")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func adjustmentLink(_ title: String, value: Binding<Int>) -> some View {
+        NavigationLink {
+            PrayerTimeOffsetEditor(title: title, minutes: value)
+        } label: {
+            adjustmentRow(title: title, detail: PrayerTimeAdjustmentStore.display(value.wrappedValue))
+        }
+    }
+
+    private func adjustmentRow(title: String, detail: String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.body.weight(.semibold))
+                Text(detail).font(.subheadline).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 7)
+    }
+}
+
+private struct PrayerTimeOffsetEditor: View {
+    let title: String
+    @Binding var minutes: Int
+
+    var body: some View {
+        Form {
+            Section {
+                Stepper(value: $minutes, in: -60...60) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(PrayerTimeAdjustmentStore.display(minutes)).font(.title3.weight(.semibold))
+                        Text("اختر التقديم أو التأخير بالدقائق").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } footer: {
+                Text("يمكنك التعديل حتى ساعة قبل أو بعد الوقت المحسوب.")
+            }
+            Section {
+                Button("إلغاء التعديل", role: .destructive) { minutes = 0 }
+                    .disabled(minutes == 0)
+            }
+        }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: minutes) { _, _ in
+            PrayerTimesManager.shared.applyManualAdjustments()
+            DhikrSummaryNotificationScheduler.shared.refreshPrayerReminders()
+        }
+    }
+}
+
+private struct SunriseDurationEditor: View {
+    @Binding var duration: Int
+
+    var body: some View {
+        Form {
+            Section {
+                Stepper(value: $duration, in: 0...30) {
+                    Text("مدة الشروق: (duration) دقيقة").font(.title3.weight(.semibold))
+                }
+            } footer: {
+                Text("هذه المدة تُظهر فترة الشروق داخل شاشة المواقيت.")
+            }
+        }
+        .navigationTitle("مدة شروق الشمس")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct PrayerAdhanSettingsView: View {
+    @ObservedObject private var recorder = PrayerAdhanRecorder.shared
+
+    private let prayers: [(id: String, title: String, symbol: String)] = [
+        ("fajr", "الفجر", "moon.stars.fill"),
+        ("dhuhr", "الظهر", "sun.max.fill"),
+        ("asr", "العصر", "sun.haze.fill"),
+        ("maghrib", "المغرب", "sunset.fill"),
+        ("isha", "العشاء", "moon.fill")
+    ]
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(prayers, id: \.id) { prayer in
+                    NavigationLink {
+                        PrayerAlertDetailView(prayerID: prayer.id, title: prayer.title, symbol: prayer.symbol)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: prayer.symbol)
+                                .foregroundStyle(.green)
+                                .frame(width: 29, height: 29)
+                                .background(Color.green.opacity(0.10), in: Circle())
+                            Text("أذان \(prayer.title)").font(.body.weight(.semibold))
+                            Spacer()
+                            Label(
+                                PrayerAlertPreference.mode(for: prayer.id).title,
+                                systemImage: recorder.hasRecording(for: prayer.id) && PrayerAlertPreference.mode(for: prayer.id) == .custom ? "checkmark.circle.fill" : "bell.fill"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(PrayerAlertPreference.mode(for: prayer.id) == .custom ? .green : .secondary)
+                        }
+                    }
+                    .padding(.vertical, 5)
+                }
+            } footer: {
+                Text("اضغط على الصلاة لفتح إعداد إشعارها واختيار الصوت أو أذانك الخاص.")
+            }
+        }
+        .navigationTitle("أذان كل صلاة")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct PrayerAlertDetailView: View {
+    let prayerID: String
+    let title: String
+    let symbol: String
+    @ObservedObject private var recorder = PrayerAdhanRecorder.shared
+    @State private var mode: PrayerAlertMode
+    @State private var selectedBuiltInAdhanID: String
+    @State private var isImportingAudio = false
+
+    init(prayerID: String, title: String, symbol: String) {
+        self.prayerID = prayerID
+        self.title = title
+        self.symbol = symbol
+        _mode = State(initialValue: PrayerAlertPreference.mode(for: prayerID))
+        _selectedBuiltInAdhanID = State(initialValue: BuiltInAdhan.selected(for: prayerID).id)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                HStack(spacing: 10) {
+                    Image(systemName: symbol).font(.title3).foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("إشعار: \(title)").font(.title3.weight(.semibold))
+                        Text("اختر ما يحدث عند دخول الوقت").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+
+            Section("نوع التنبيه") {
+                Picker("نوع التنبيه", selection: $mode) {
+                    Text("بدون صوت").tag(PrayerAlertMode.none)
+                    Text("صامت").tag(PrayerAlertMode.silent)
+                    Text("افتراضي").tag(PrayerAlertMode.system)
+                    Text("مدمج").tag(PrayerAlertMode.builtIn)
+                    Text("أذان خاص").tag(PrayerAlertMode.custom)
+                }
+                .pickerStyle(.segmented)
+            }
+
+            Section("الصوت") {
+                modeRow(.none, icon: "nosign")
+                modeRow(.silent, icon: "bell.slash")
+                modeRow(.system, icon: "bell.badge")
+                modeRow(.builtIn, icon: "building.columns")
+                modeRow(.custom, icon: "waveform")
+            }
+
+            if mode == .builtIn {
+                Section {
+                    ForEach(BuiltInAdhan.all) { adhan in
+                        HStack(spacing: 12) {
+                            Button {
+                                BuiltInAdhan.select(adhan, for: prayerID)
+                                selectedBuiltInAdhanID = adhan.id
+                                DhikrSummaryNotificationScheduler.shared.refreshPrayerReminders()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "waveform.circle.fill")
+                                        .foregroundStyle(.green)
+                                        .font(.title3)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(adhan.title).foregroundStyle(.primary)
+                                        Text(adhan.subtitle).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    if selectedBuiltInAdhanID == adhan.id {
+                                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                if recorder.playingBuiltInAdhanID == adhan.id {
+                                    recorder.stopPlayback()
+                                } else {
+                                    recorder.playBuiltInAdhan(adhan)
+                                }
+                            } label: {
+                                Image(systemName: recorder.playingBuiltInAdhanID == adhan.id ? "stop.circle.fill" : "play.circle.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(.green)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(recorder.playingBuiltInAdhanID == adhan.id ? "إيقاف المعاينة" : "معاينة الصوت")
+                        }
+                    }
+                } header: {
+                    Text("اختر الأذان")
+                } footer: {
+                    Text("يشغّل إشعار الآيفون أول 30 ثانية فقط من الصوت المختار.")
+                }
+            }
+
+            if mode == .custom {
+                Section {
+                    Button {
+                        if isRecordingThisPrayer { recorder.stopRecording() }
+                        else { recorder.requestAndStartRecording(for: prayerID) }
+                    } label: {
+                        Label(recordingButtonTitle, systemImage: recordingButtonSymbol)
+                    }
+                    .tint(isRecordingThisPrayer ? .red : .green)
+
+                    Button { isImportingAudio = true } label: {
+                        Label("إضافة من الملفات", systemImage: "folder")
+                    }
+
+                    if recorder.hasRecording(for: prayerID) {
+                        Button {
+                            recorder.playingPrayerID == prayerID ? recorder.stopPlayback() : recorder.playRecording(for: prayerID)
+                        } label: {
+                            Label(recorder.playingPrayerID == prayerID ? "إيقاف المعاينة" : "معاينة الصوت", systemImage: recorder.playingPrayerID == prayerID ? "stop.fill" : "play.fill")
+                        }
+                        Button(role: .destructive) { recorder.deleteRecording(for: prayerID) } label: {
+                            Label("حذف الصوت الخاص", systemImage: "trash")
+                        }
+                    }
+                } header: {
+                    Text("أذانك الخاص")
+                } footer: {
+                    Text("التسجيل حتى 5 دقائق، بينما يشغّل إشعار الآيفون أول 30 ثانية فقط.")
+                }
+            }
+        }
+        .navigationTitle("إشعار: \(title)")
+        .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: mode) { _, value in
+            PrayerAlertPreference.set(value, for: prayerID)
+            DhikrSummaryNotificationScheduler.shared.refreshPrayerReminders()
+        }
+        .alert("أذان \(title)", isPresented: Binding(get: { recorder.message != nil }, set: { if !$0 { recorder.clearMessage() } })) {
+            Button("حسناً", role: .cancel) { recorder.clearMessage() }
+        } message: { Text(recorder.message ?? "") }
+        .onDisappear {
+            recorder.stopPlayback()
+            if recorder.recordingPrayerID == prayerID { recorder.stopRecording() }
+        }
+        .fileImporter(isPresented: $isImportingAudio, allowedContentTypes: [.audio]) { result in
+            if case .success(let url) = result { recorder.importAudio(from: url, for: prayerID) }
+        }
+    }
+
+    private func modeRow(_ value: PrayerAlertMode, icon: String) -> some View {
+        Button {
+            mode = value
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon).foregroundStyle(value == mode ? .green : .secondary).frame(width: 24)
+                Text(value.title).foregroundStyle(.primary)
+                Spacer()
+                if value == mode { Image(systemName: "checkmark").foregroundStyle(.green) }
+            }
+        }
+    }
+
+    private var isRecordingThisPrayer: Bool { recorder.recordingPrayerID == prayerID }
+    private var recordingButtonTitle: String { isRecordingThisPrayer ? "إيقاف وحفظ التسجيل" : "تسجيل صوت" }
+    private var recordingButtonSymbol: String { isRecordingThisPrayer ? "stop.fill" : "mic.fill" }
 }
 
 /// Observe the verified entitlement here as well so a pushed screen closes access

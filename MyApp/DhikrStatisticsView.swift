@@ -94,7 +94,7 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
             return
         }
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
-        cancelPrayerReminders()
+        refreshPrayerReminders()
         refreshCustomReminder()
         guard summariesEnabled else { return }
         guard CLLocationManager.locationServicesEnabled() else { return }
@@ -166,7 +166,8 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: identifiers + removedPeriodIdentifiers)
         let stats = WatchSyncService.shared.statistics
-        schedule(center, id: identifiers[0], date: nextSunset(after: Date(), coordinate: coordinate), title: "ملخص اليوم", body: dailyBody(stats))
+        let azkar = WatchSyncService.shared.azkarList
+        schedule(center, id: identifiers[0], date: nextSunset(after: Date(), coordinate: coordinate), title: "ملخص اليوم", body: dailyBody(stats, azkar: azkar))
     }
 
     private func schedule(_ center: UNUserNotificationCenter, id: String, date: Date?, title: String, body: String) {
@@ -176,17 +177,18 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
         center.add(UNNotificationRequest(identifier: id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)))
     }
 
-    private func dailyBody(_ stats: DhikrStatisticsLedger) -> String {
-        let today = stats.totalToday(), yesterday = stats.totalYesterday()
-        let goal = UserDefaults.standard.object(forKey: "fadhkuruni_daily_statistics_goal") as? Int ?? 100
-        return "سبّحت اليوم \(today) من هدف \(goal). " + comparisonBody(current: today, previous: yesterday, period: "الأمس")
+    private func dailyBody(_ stats: DhikrStatisticsLedger, azkar: [ZekrItem]) -> String {
+        guard !azkar.isEmpty else { return "لا توجد أذكار مسجلة اليوم." }
+        return azkar.map { item in
+            "\(item.title): \(stats.totalToday(for: item.title))"
+        }.joined(separator: "\n")
     }
 
-    private func comparisonBody(current: Int, previous: Int, period: String) -> String {
-        guard previous > 0 else { return "مجموعك: \(current)." }
-        if current > previous { return "مجموعك \(current)، أكثر من \(period) بـ \(current - previous)." }
-        if current < previous { return "مجموعك \(current)، أقل من \(period) بـ \(previous - current)." }
-        return "مجموعك \(current)، مثل \(period)."
+    private func comparisonBody(current: Int, previous: Int, period: String, label: String) -> String {
+        guard previous > 0 else { return "عدد الأذكار \(label): \(current)." }
+        if current > previous { return "عدد الأذكار \(label): \(current)، أكثر من \(period) بـ \(current - previous)." }
+        if current < previous { return "عدد الأذكار \(label): \(current)، أقل من \(period) بـ \(previous - current)." }
+        return "عدد الأذكار \(label): \(current)، مثل \(period)."
     }
 
     private func nextSunset(after date: Date, coordinate: CLLocationCoordinate2D) -> Date? {
@@ -194,32 +196,15 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
         if candidate == nil || candidate! <= date { candidate = SolarTime.sunset(on: Calendar.current.date(byAdding: .day, value: 1, to: date) ?? date, coordinate: coordinate) }
         return candidate
     }
-    private func nextWeekEndSunset(coordinate: CLLocationCoordinate2D) -> Date? { sunsetOnNext(6, coordinate: coordinate) }
-    private func nextMonthEndSunset(coordinate: CLLocationCoordinate2D) -> Date? {
-        let calendar = Calendar.current; let nextMonth = calendar.date(byAdding: .month, value: 1, to: Date()) ?? Date()
-        let first = calendar.date(from: calendar.dateComponents([.year, .month], from: nextMonth)) ?? nextMonth
-        return SolarTime.sunset(on: calendar.date(byAdding: .day, value: -1, to: first) ?? first, coordinate: coordinate)
-    }
-    private func nextYearEndSunset(coordinate: CLLocationCoordinate2D) -> Date? {
-        let calendar = Calendar.current; let year = calendar.component(.year, from: Date()) + 1
-        var c = DateComponents(); c.year = year; c.month = 12; c.day = 31
-        return SolarTime.sunset(on: calendar.date(from: c) ?? Date(), coordinate: coordinate)
-    }
-    private func sunsetOnNext(_ weekday: Int, coordinate: CLLocationCoordinate2D) -> Date? {
-        let calendar = Calendar.current
-        let next = calendar.nextDate(after: Date(), matching: DateComponents(weekday: weekday), matchingPolicy: .nextTime) ?? Date()
-        return nextSunset(after: calendar.startOfDay(for: next), coordinate: coordinate)
-    }
-
     private func schedulePrayerReminders(_ center: UNUserNotificationCenter) {
         guard UserDefaults.standard.object(forKey: "fadhkuruni_prayer_reminders_enabled") as? Bool ?? true else { return }
         center.removePendingNotificationRequests(withIdentifiers: prayerIdentifiers)
         let messages = [
-            "fajr": ("تذكير بالذكر", "ابدأ لحظتك بذكر الله."),
-            "dhuhr": ("تذكير بالذكر", "خذ لحظة للذكر والطمأنينة."),
-            "asr": ("تذكير بالذكر", "اجعل لسانك رطباً بذكر الله."),
-            "maghrib": ("تذكير بالذكر", "سبّح الله واشكره."),
-            "isha": ("تذكير بالذكر", "اختم وقتك بذكر يطمئن قلبك.")
+            "fajr": ("حان وقت صلاة الفجر", "حي على الصلاة"),
+            "dhuhr": ("حان وقت صلاة الظهر", "حي على الصلاة"),
+            "asr": ("حان وقت صلاة العصر", "حي على الصلاة"),
+            "maghrib": ("حان وقت صلاة المغرب", "حي على الصلاة"),
+            "isha": ("حان وقت صلاة العشاء", "حي على الصلاة")
         ]
         let minutesByPrayer = [
             "fajr": UserDefaults.standard.object(forKey: "fadhkuruni_prayer_fajr_minutes") as? Int ?? 330,
@@ -228,9 +213,29 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
             "maghrib": UserDefaults.standard.object(forKey: "fadhkuruni_prayer_maghrib_minutes") as? Int ?? 1080,
             "isha": UserDefaults.standard.object(forKey: "fadhkuruni_prayer_isha_minutes") as? Int ?? 1200
         ]
-        for (name, minutes) in minutesByPrayer {
+        for (name, baseMinutes) in minutesByPrayer {
             guard let message = messages[name] else { continue }
-            let content = UNMutableNotificationContent(); content.title = message.0; content.body = message.1; content.sound = .default
+            let alertMode = PrayerAlertPreference.mode(for: name)
+            guard alertMode != .none else { continue }
+            let content = UNMutableNotificationContent()
+            content.title = message.0
+            content.body = message.1
+            if #available(iOS 15.0, *) {
+                content.interruptionLevel = .timeSensitive
+            }
+            switch alertMode {
+            case .none:
+                continue
+            case .silent:
+                content.sound = nil
+            case .system:
+                content.sound = .default
+            case .builtIn:
+                content.sound = BuiltInAdhan.notificationSound(for: name)
+            case .custom:
+                content.sound = PrayerAdhanRecorder.notificationSound(for: name) ?? .default
+            }
+            let minutes = (baseMinutes + PrayerTimeAdjustmentStore.offset(for: name) + 1_440) % 1_440
             var components = DateComponents(); components.hour = minutes / 60; components.minute = minutes % 60
             center.add(UNNotificationRequest(identifier: "fadhkuruni.prayer.\(name)", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)))
         }

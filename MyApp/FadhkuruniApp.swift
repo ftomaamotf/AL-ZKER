@@ -11,6 +11,7 @@ struct FadhkuruniApp: App {
                     // Ask for motion/location access as soon as the app opens; StoreKit refresh can wait on the network.
                     DrivingModeManager.shared.start()
                     DhikrSummaryNotificationScheduler.shared.refresh()
+                    PrayerTimesManager.shared.refresh()
                     IconBadgeManager.shared.update(count: WatchSyncService.shared.currentCount)
                     TapFeedback.shared.prepare()
                     WatchPurchaseAccess.shared.onPurchaseChanged = { WatchSyncService.shared.notifyWatchPurchaseChanged() }
@@ -22,6 +23,7 @@ struct FadhkuruniApp: App {
                         TapFeedback.shared.prepare()
                         DrivingModeManager.shared.start()
                         DhikrSummaryNotificationScheduler.shared.refresh()
+                        PrayerTimesManager.shared.refresh()
                         Task { await WatchPurchaseAccess.shared.refresh() }
                     }
                 }

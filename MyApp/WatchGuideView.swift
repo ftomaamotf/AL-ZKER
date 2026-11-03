@@ -72,9 +72,7 @@ struct WatchGuideView: View {
             NavigationStack {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        Image(feature.id)
-                            .resizable()
-                            .scaledToFit()
+                        guideImage(for: feature)
                             .accessibilityLabel(feature.title)
                         Text(feature.summary).font(.headline)
                         ForEach(feature.steps, id: \.self) { step in Text(step) }
@@ -114,9 +112,7 @@ struct WatchGuideView: View {
     private func featureCard(_ feature: WatchGuideFeature) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Button { selectedImage = feature } label: {
-                Image(feature.id)
-                    .resizable()
-                    .scaledToFit()
+                guideImage(for: feature)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
             }
             .buttonStyle(.plain)
@@ -141,6 +137,17 @@ struct WatchGuideView: View {
         .background(Color(UIColor.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24))
     }
 
+    @ViewBuilder
+    private func guideImage(for feature: WatchGuideFeature) -> some View {
+        if feature.id == "WatchGuideGestures" {
+            AnimatedGestureGuideImage()
+        } else {
+            Image(feature.id)
+                .resizable()
+                .scaledToFit()
+        }
+    }
+
     private var counterTools: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("بقية خيارات التاج").font(.title3.bold())
@@ -153,6 +160,17 @@ struct WatchGuideView: View {
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(UIColor.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22))
+    }
+}
+
+/// Clear static instructional artwork for the double-tap gesture.
+private struct AnimatedGestureGuideImage: View {
+    var body: some View {
+        Image("WatchGuideGestures")
+            .resizable()
+            .scaledToFit()
+            .accessibilityLabel("صورة توضيحية لإيماءة النقر المزدوج")
+            .accessibilityAddTraits(.isImage)
     }
 }
 

@@ -85,7 +85,7 @@ struct DrivingModePreview: View {
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white)
 
-                        Text("التسبيح متوقف أثناء الحركة")
+                        Text("التسبيح متوقف أثناء القيادة")
                             .font(.system(size: 9))
                             .foregroundStyle(.white.opacity(0.75))
                             .multilineTextAlignment(.center)

@@ -30,37 +30,41 @@ struct WatchContentView: View {
     @State private var lastIncrementTime: Date = .distantPast
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 2) {
             // 1. الشريط العلوي: زر القبلة بأعلى اليمين + اسم الذكر
             HStack(alignment: .center) {
-                // أعلى يمين الشاشة: زر القبلة المباشر
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        isQiblaActive.toggle()
-                        if isQiblaActive {
-                            QiblaManager.shared.start()
-                        } else {
-                            QiblaManager.shared.stop()
+                // الزاوية اليمنى: القبلة.
+                VStack(spacing: 7) {
+                    Button {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            isQiblaActive.toggle()
+                            if isQiblaActive {
+                                QiblaManager.shared.start()
+                            } else {
+                                QiblaManager.shared.stop()
+                            }
                         }
+                        WKInterfaceDevice.current().play(.click)
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(isQiblaActive ? Color.green : Color.green.opacity(0.18))
+                                .frame(width: 32, height: 32)
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(Color.green.opacity(0.45), lineWidth: 1)
+                                )
+                            Image(systemName: "safari.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(isQiblaActive ? Color.black : Color.green)
+                        }
+                        .contentShape(Circle())
                     }
-                    WKInterfaceDevice.current().play(.click)
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(isQiblaActive ? Color.green : Color.green.opacity(0.18))
-                            .frame(width: 32, height: 32)
-                            .overlay(
-                                Circle()
-                                    .strokeBorder(Color.green.opacity(0.45), lineWidth: 1)
-                            )
-                        Image(systemName: "safari.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(isQiblaActive ? Color.black : Color.green)
-                    }
-                    .contentShape(Circle())
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isQiblaActive ? "العودة للعدّاد" : "اتجاه القبلة")
+
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isQiblaActive ? "العودة للعدّاد" : "اتجاه القبلة")
+                .offset(y: -24)
 
                 Spacer()
 
@@ -77,8 +81,12 @@ struct WatchContentView: View {
                         .foregroundStyle(isQiblaActive && qibla.isAligned ? Color.yellow : Color.secondary)
                         .lineLimit(1)
                 }
+                .offset(y: -46)
+                .padding(.bottom, -14)
+
             }
             .padding(.horizontal, 4)
+            .padding(.top, 18)
 
             // 2. المنطقة المركزية: دائرة العداد المتطابقة مع الآيفون أو بوصلة القبلة
             ZStack {
@@ -89,69 +97,11 @@ struct WatchContentView: View {
                 }
             }
             .frame(width: 136, height: 136)
+            .scaleEffect(1.20)
+            .frame(width: 164, height: 164)
+            .offset(y: -36)
+            .padding(.bottom, -36)
 
-            // 3. أزرار التحكم السفلية
-            HStack(spacing: 12) {
-                if sync.showsDecrementButton {
-                    Button {
-                        decrementCount()
-                    } label: {
-                        Image(systemName: "minus")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.85))
-                            .frame(width: 38, height: 38)
-                            .fadhkuruniGlass(radius: 19)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(sync.currentCount == 0 || isQiblaActive)
-                    .opacity(sync.currentCount == 0 || isQiblaActive ? 0.35 : 1)
-                    .accessibilityLabel("إنقاص عداد الذكر بمقدار واحد")
-                }
-
-                if sync.showsResetButton {
-                    Button {
-                        pendingScreenReset = sync.azkarList.first { $0.title == sync.currentZekr }
-                        showScreenResetConfirmation = pendingScreenReset != nil
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text("تصفير").foregroundStyle(.white.opacity(0.9))
-                            Image(systemName: "arrow.counterclockwise")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.white.opacity(0.85))
-                        }
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: 74, height: 34)
-                        .fadhkuruniGlass(radius: 12)
-                        .contentShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(sync.currentCount == 0 || isQiblaActive)
-                    .opacity(sync.currentCount == 0 || isQiblaActive ? 0.35 : 1)
-                    .accessibilityLabel("تصفير عداد الذكر الحالي")
-                }
-
-                Button {
-                    if isQiblaActive {
-                        withAnimation {
-                            isQiblaActive = false
-                            QiblaManager.shared.stop()
-                        }
-                    } else {
-                        incrementCount()
-                    }
-                } label: {
-                    Image(systemName: isQiblaActive ? "arrow.uturn.backward" : "plus")
-                        .font(.system(size: isQiblaActive ? 16 : 22, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                        .fadhkuruniGlass(tint: isQiblaActive ? .orange : .green, radius: 22)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isQiblaActive ? "العودة للعدّاد" : "زيادة عداد التسبيح")
-                .enableDoubleTapGesture()
-            }
-            .environment(\.layoutDirection, .leftToRight)
         }
         .sheet(isPresented: $showScreenResetConfirmation, onDismiss: { pendingScreenReset = nil }) {
             WatchResetConfirmationView {
@@ -165,6 +115,18 @@ struct WatchContentView: View {
             }
         }
         .padding(.horizontal, 8)
+        // زر غير مرئي يعيّن الإيماءة كإجراء أساسي بعد إخفاء زر الزيادة الظاهر.
+        .overlay(alignment: .bottomTrailing) {
+            Button {
+                guard !isQiblaActive else { return }
+                incrementCount()
+            } label: {
+                Color.clear.frame(width: 1, height: 1)
+            }
+            .buttonStyle(.plain)
+            .enableDoubleTapGesture()
+            .accessibilityLabel("تسبيح بالإيماءة")
+        }
         .environment(\.layoutDirection, .rightToLeft)
         // ربط تدوير زر التاج (Digital Crown) لإظهار الخيارات
         .focusable()
@@ -249,29 +211,216 @@ struct WatchContentView: View {
                 .rotationEffect(.degrees(-90))
                 .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sync.currentCount)
 
-            // الأرقام والهدف في المنتصف
-            VStack(spacing: 2) {
-                Text("\(sync.currentCount)")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .foregroundStyle(.green)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
+            if sync.showsWatchClockCover {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    EmeraldAnalogClock(
+                        date: context.date,
+                        photoData: sync.watchClockPhotoData,
+                        count: sync.currentCount,
+                        target: sync.target
+                    )
+                }
+                .offset(y: 0)
+            } else {
+                // الرقم والهدف في المنتصف
+                VStack(spacing: 2) {
+                    Text("\(sync.currentCount)")
+                        .font(.system(size: 38, weight: .bold, design: .rounded))
+                        .foregroundStyle(.green)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
 
-                Text("الهدف \(sync.target)")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    Text("الهدف \(sync.target)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .padding(12)
+                .offset(y: -22)
             }
-            .padding(12)
+
+            if sync.showsDecrementButton {
+                Button { decrementCount() } label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .frame(width: 30, height: 30)
+                        .fadhkuruniGlass(radius: 15)
+                }
+                .buttonStyle(.plain)
+                .disabled(sync.currentCount == 0)
+                .opacity(sync.currentCount == 0 ? 0.35 : 1)
+                .offset(x: -27, y: 31)
+                .accessibilityLabel("إنقاص عداد الذكر بمقدار واحد")
+            }
+
+            if sync.showsResetButton {
+                Button {
+                    pendingScreenReset = sync.azkarList.first { $0.title == sync.currentZekr }
+                    showScreenResetConfirmation = pendingScreenReset != nil
+                } label: {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .frame(width: 32, height: 32)
+                        .fadhkuruniGlass(radius: 16)
+                }
+                .buttonStyle(.plain)
+                .disabled(sync.currentCount == 0)
+                .opacity(sync.currentCount == 0 ? 0.35 : 1)
+                .offset(x: 27, y: 31)
+                .accessibilityLabel("تصفير عداد الذكر الحالي")
+            }
+
         }
+        .environment(\.layoutDirection, .leftToRight)
         .frame(width: 136, height: 136)
         .contentShape(Circle())
         .onTapGesture {
             incrementCount()
         }
     }
+
+private struct EmeraldAnalogClock: View {
+    let date: Date
+    let photoData: Data?
+    let count: Int
+    let target: Int
+
+    private var calendar: Calendar { Calendar.current }
+    private var hourAngle: Double {
+        let parts = calendar.dateComponents([.hour, .minute, .second], from: date)
+        let hour = Double((parts.hour ?? 0) % 12)
+        let minute = Double(parts.minute ?? 0)
+        let second = Double(parts.second ?? 0)
+        return hour * 30 + minute * 0.5 + second / 120
+    }
+    private var minuteAngle: Double {
+        let parts = calendar.dateComponents([.minute, .second], from: date)
+        return Double(parts.minute ?? 0) * 6 + Double(parts.second ?? 0) * 0.1
+    }
+    private var secondAngle: Double {
+        Double(calendar.component(.second, from: date)) * 6
+    }
+
+    var body: some View {
+        ZStack {
+            if let photoData, let image = UIImage(data: photoData) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 136, height: 136)
+                    .clipShape(Circle())
+                    .overlay(Circle().fill(.black.opacity(0.20)))
+            } else {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [.white.opacity(0.92), .mint.opacity(0.70), .green.opacity(0.52), Color(red: 0.01, green: 0.22, blue: 0.12)],
+                            center: .topLeading,
+                            startRadius: 3,
+                            endRadius: 106
+                        )
+                    )
+            }
+            Circle()
+                .strokeBorder(.white.opacity(0.72), lineWidth: 1.2)
+                .shadow(color: .mint.opacity(0.38), radius: 12)
+            Circle()
+                .strokeBorder(.white.opacity(0.22), lineWidth: 1)
+                .padding(11)
+            Circle()
+                .strokeBorder(
+                    AngularGradient(
+                        colors: [.clear, .white.opacity(0.86), .mint.opacity(0.65), .clear, .white.opacity(0.50), .clear],
+                        center: .center
+                    ),
+                    lineWidth: 2
+                )
+                .padding(5)
+            RoundedRectangle(cornerRadius: 25, style: .continuous)
+                .fill(.white.opacity(0.23))
+                .frame(width: 83, height: 20)
+                .rotationEffect(.degrees(-31))
+                .offset(x: -20, y: -40)
+                .blur(radius: 2)
+            Circle()
+                .fill(.black.opacity(0.13))
+                .frame(width: 98, height: 98)
+                .offset(x: 26, y: 33)
+                .blur(radius: 14)
+            Image(systemName: "sparkle")
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(.white.opacity(0.94))
+                .shadow(color: .mint.opacity(0.9), radius: 5)
+                .offset(x: -39, y: -37)
+            Image(systemName: "sparkle")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.78))
+                .shadow(color: .mint.opacity(0.8), radius: 4)
+                .offset(x: 42, y: 22)
+            ForEach(0..<12, id: \.self) { tick in
+                Capsule()
+                    .fill(.white.opacity(tick % 3 == 0 ? 0.92 : 0.48))
+                    .frame(width: tick % 3 == 0 ? 2.5 : 1, height: tick % 3 == 0 ? 10 : 5)
+                    .offset(y: -51)
+                    .rotationEffect(.degrees(Double(tick) * 30))
+            }
+
+            // نافذة رقم عداد الذكر داخل ميناء الساعة بحيث لا تحجب العداد أبداً
+            VStack(spacing: 0) {
+                Text("\(count)")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.green)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .shadow(color: .black.opacity(0.85), radius: 3)
+
+                if target > 0 {
+                    Text("الهدف \(target)")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .shadow(color: .black.opacity(0.85), radius: 2)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(
+                Capsule()
+                    .fill(Color.black.opacity(0.42))
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.white.opacity(0.20), lineWidth: 0.8)
+                    )
+            )
+            .offset(y: 22)
+
+            clockHand(length: 31, width: 5, color: .white, angle: hourAngle)
+            clockHand(length: 43, width: 3, color: .white.opacity(0.92), angle: minuteAngle)
+            clockHand(length: 47, width: 1.25, color: .mint.opacity(0.96), angle: secondAngle)
+
+            Circle()
+                .fill(.mint)
+                .frame(width: 9, height: 9)
+                .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 1))
+                .shadow(color: .mint.opacity(0.9), radius: 5)
+        }
+        .environment(\.layoutDirection, .leftToRight)
+        .frame(width: 136, height: 136)
+        .clipShape(Circle())
+    }
+
+    private func clockHand(length: CGFloat, width: CGFloat, color: Color, angle: Double) -> some View {
+        Capsule()
+            .fill(color)
+            .frame(width: width, height: length)
+            .offset(y: -length / 2)
+            .rotationEffect(.degrees(angle))
+            .shadow(color: .black.opacity(0.28), radius: 1.5, y: 1)
+    }
+}
 
     // MARK: - بطاقة القبلة داخل دائرة الساعة
     private var watchQiblaCircleView: some View {
@@ -382,18 +531,25 @@ struct WatchContentView: View {
                     }
                     .frame(width: 114)
 
-                    // إبرة البوصلة
+                    // إبرة قبلة زجاجية — تدويرها يبقى مرتبطاً بالاتجاه الحقيقي للقبلة.
                     VStack(spacing: 0) {
-                        Image(systemName: "location.north.fill")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundStyle(LinearGradient(colors: [Color.yellow, Color.green], startPoint: .top, endPoint: .bottom))
-                            .shadow(color: Color.green.opacity(0.4), radius: 4)
-                        Rectangle()
-                            .fill(LinearGradient(colors: [Color.green, Color.mint.opacity(0.2)], startPoint: .top, endPoint: .bottom))
-                            .frame(width: 2.5, height: 34)
-                        Circle()
-                            .fill(Color.green)
-                            .frame(width: 6, height: 6)
+                        ZStack {
+                            Image(systemName: "location.north.fill")
+                                .font(.system(size: 25, weight: .bold))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.white.opacity(0.96), .mint.opacity(0.9), .green.opacity(0.92)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                            Image(systemName: "location.north.fill")
+                                .font(.system(size: 25, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.36))
+                                .blur(radius: 0.7)
+                                .offset(x: -1, y: -1)
+                        }
+                        .shadow(color: .green.opacity(0.42), radius: 6, y: 2)
                     }
                     .rotationEffect(.degrees(qibla.needleAngle))
                     .animation(.spring(response: 0.35, dampingFraction: 0.75), value: qibla.needleAngle)
@@ -414,6 +570,7 @@ struct WatchContentView: View {
                 }
             }
         }
+        .environment(\.layoutDirection, .leftToRight)
         .frame(width: 136, height: 136)
         .contentShape(Circle())
         .onTapGesture {
@@ -431,7 +588,7 @@ struct WatchContentView: View {
 
     private func decrementCount() {
         guard sync.currentCount > 0 else { return }
-        sync.sendSyncPayload(count: sync.currentCount - 1, zekr: sync.currentZekr, target: sync.target)
+        sync.decrementCurrentZekr()
         lastIncrementTime = Date()
         WatchKeepAwakeManager.shared.recordCountingActivity()
         WKInterfaceDevice.current().play(.click)
@@ -509,6 +666,14 @@ struct CrownOptionsView: View {
                         .tint(.green)
                         .padding(10)
 
+                        Toggle("عرض وجه الساعة", isOn: Binding(
+                            get: { sync.showsWatchClockCover },
+                            set: { sync.setWatchClockCover($0) }
+                        ))
+                        .font(.caption)
+                        .tint(.mint)
+                        .padding(10)
+
                         Text("إدارة العداد")
                             .font(.caption2.weight(.medium))
                             .foregroundStyle(.secondary)
@@ -518,7 +683,7 @@ struct CrownOptionsView: View {
 
                         Button {
                             guard sync.currentCount > 0 else { return }
-                            sync.sendSyncPayload(count: sync.currentCount - 1, zekr: sync.currentZekr, target: sync.target)
+                            sync.decrementCurrentZekr()
                             WatchKeepAwakeManager.shared.recordCountingActivity()
                             WKInterfaceDevice.current().play(.click)
                         } label: {
@@ -537,13 +702,6 @@ struct CrownOptionsView: View {
                         .buttonStyle(.plain)
                         .disabled(sync.currentCount == 0)
                         .opacity(sync.currentCount == 0 ? 0.45 : 1)
-
-                        NavigationLink {
-                            WatchQiblaView()
-                        } label: {
-                            CrownOptionCard(title: "القبلة", subtitle: "اتجاه الكعبة", symbol: "location.north.circle", tint: .teal)
-                        }
-                        .buttonStyle(.plain)
 
                         NavigationLink {
                             TapFeedbackSettingsView()
@@ -870,3 +1028,4 @@ private struct WatchResetConfirmationView: View {
         .preferredColorScheme(.dark)
     }
 }
+

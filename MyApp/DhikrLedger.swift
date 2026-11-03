@@ -23,9 +23,15 @@ struct DhikrLedger: Codable, Equatable {
         var epoch = Stamp()
         var baseline: Int
         var increments: [String: Int] = [:]
+        // Optional so ledgers saved before correction support still decode safely.
+        var decrements: [String: Int]? = nil
         // Optional for compatibility with saved ledgers from before goal cycling.
         var cyclesAtTarget: Bool? = nil
-        var totalCount: Int { increments.values.reduce(baseline) { min(Int.max / 2, $0 + $1) } }
+        var totalCount: Int {
+            let added = increments.values.reduce(baseline) { min(Int.max / 2, $0 + $1) }
+            let removed = (decrements ?? [:]).values.reduce(0, +)
+            return max(0, added - removed)
+        }
         var count: Int {
             guard cyclesAtTarget == true, item.defaultTarget > 0 else { return totalCount }
             return totalCount % item.defaultTarget
@@ -52,12 +58,12 @@ struct DhikrLedger: Codable, Equatable {
             }
             let old = previous.first { DhikrText.key($0.title) == key }
             if old == nil { entry.baseline = max(entry.baseline, item.count) }
-            if entry.deleted { entry.edited = stamp; entry.deleted = false; entry.epoch = stamp; entry.baseline = item.count; entry.increments = [:] }
+            if entry.deleted { entry.edited = stamp; entry.deleted = false; entry.epoch = stamp; entry.baseline = item.count; entry.increments = [:]; entry.decrements = nil }
             if let old, old.defaultTarget != item.defaultTarget, entry.cyclesAtTarget == true {
                 // A new target starts from the currently displayed progress, not old cycles.
-                entry.epoch = stamp; entry.baseline = item.count; entry.increments = [:]
+                entry.epoch = stamp; entry.baseline = item.count; entry.increments = [:]; entry.decrements = nil
             } else if let old, item.count < old.count {
-                entry.epoch = stamp; entry.baseline = item.count; entry.increments = [:]
+                entry.epoch = stamp; entry.baseline = item.count; entry.increments = [:]; entry.decrements = nil
             } else if let old, item.count > old.count {
                 entry.increments[stamp.origin, default: 0] += item.count - old.count
             }
@@ -74,10 +80,13 @@ struct DhikrLedger: Codable, Equatable {
                 local.item = remote.item; local.edited = remote.edited; local.deleted = remote.deleted
             }
             if local.epoch < remote.epoch {
-                local.epoch = remote.epoch; local.baseline = remote.baseline; local.increments = remote.increments
+                local.epoch = remote.epoch; local.baseline = remote.baseline; local.increments = remote.increments; local.decrements = remote.decrements
             } else if local.epoch == remote.epoch {
                 local.baseline = max(local.baseline, remote.baseline)
                 for (device, value) in remote.increments { local.increments[device] = max(local.increments[device] ?? 0, value) }
+                var corrections = local.decrements ?? [:]
+                for (device, value) in remote.decrements ?? [:] { corrections[device] = max(corrections[device] ?? 0, value) }
+                local.decrements = corrections.isEmpty ? nil : corrections
             }
             if local.cyclesAtTarget == true || remote.cyclesAtTarget == true { local.cyclesAtTarget = true }
             entries[key] = local
@@ -97,6 +106,18 @@ struct DhikrLedger: Codable, Equatable {
         return entry.completedCycles > oldCycles
     }
 
+    /// Record an intentional correction as a per-device monotonic value, so it survives merges.
+    mutating func recordDecrement(title: String, stamp: Stamp) -> Bool {
+        let key = DhikrText.key(title)
+        guard var entry = entries[key], !entry.deleted, entry.count > 0 else { return false }
+        var corrections = entry.decrements ?? [:]
+        guard corrections[stamp.origin, default: 0] < Int.max / 4 - 1 else { return false }
+        corrections[stamp.origin, default: 0] += 1
+        entry.decrements = corrections
+        entries[key] = entry
+        return true
+    }
+
     var items: [ZekrItem] {
         entries.sorted { $0.key < $1.key }.compactMap { _, entry in
             guard !entry.deleted else { return nil }
@@ -107,6 +128,7 @@ struct DhikrLedger: Codable, Equatable {
         entries.allSatisfy { key, entry in
             key == DhikrText.key(entry.item.title) && !key.isEmpty && entry.baseline >= 0 && entry.baseline < Int.max / 4 &&
             entry.increments.values.allSatisfy { $0 >= 0 && $0 < Int.max / 4 } &&
+            (entry.decrements ?? [:]).values.allSatisfy { $0 >= 0 && $0 < Int.max / 4 } &&
             (1...10000).contains(entry.item.defaultTarget) && entry.edited.time.isFinite && entry.epoch.time.isFinite
         }
     }

@@ -1,15 +1,18 @@
-import CoreMotion
 import CoreLocation
 import Combine
 import Foundation
 
-/// Locks counting while the iPhone reports movement, and unlocks again only after stillness.
+/// Locks counting once the iPhone reports vehicle-level speed, then mirrors the lock to Apple Watch.
 @MainActor
 final class DrivingModeManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     static let shared = DrivingModeManager()
 
+    /// 20 km/h, expressed in Core Location's metres per second.
+    private let lockSpeed: CLLocationSpeed = 20.0 / 3.6
+    /// A small lower threshold prevents GPS speed jitter from repeatedly locking and unlocking.
+    private let unlockSpeed: CLLocationSpeed = 18.0 / 3.6
+
     @Published private(set) var isDriving = false
-    private let activityManager = CMMotionActivityManager()
     private let locationManager = CLLocationManager()
     private var releaseWorkItem: DispatchWorkItem?
 
@@ -20,34 +23,13 @@ final class DrivingModeManager: NSObject, ObservableObject, CLLocationManagerDel
         isDriving = WatchSyncService.shared.isDrivingLocked
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
-        locationManager.distanceFilter = 20
+        locationManager.distanceFilter = 10
     }
 
     func start() {
-        if CMMotionActivityManager.isActivityAvailable() {
-            activityManager.startActivityUpdates(to: .main) { [weak self] activity in
-                guard let self, let activity else { return }
-                Task { @MainActor in self.handle(activity) }
-            }
-        }
         startSpeedUpdates()
-        // Motion classifications can remain active briefly after stopping.
-        // Do not leave the app locked forever when no new movement evidence arrives.
+        // Do not leave a previously mirrored lock active forever if a fresh location is delayed.
         if isDriving { scheduleRelease(after: 8) }
-    }
-
-    private func handle(_ activity: CMMotionActivity) {
-        // Safety lock is reserved for vehicle travel only.
-        let isMoving = activity.automotive
-        if isMoving && activity.confidence != .low {
-            releaseWorkItem?.cancel()
-            setDriving(true)
-        } else if isDriving, activity.stationary {
-            // The motion system explicitly confirmed stillness; return promptly on both devices.
-            scheduleRelease(after: 3)
-        } else if isDriving {
-            scheduleRelease(after: 8)
-        }
     }
 
     private func startSpeedUpdates() {
@@ -71,13 +53,14 @@ final class DrivingModeManager: NSObject, ObservableObject, CLLocationManagerDel
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last,
               location.horizontalAccuracy >= 0,
-              location.horizontalAccuracy <= 100 else { return }
+              location.horizontalAccuracy <= 100,
+              location.speed >= 0 else { return }
 
-        if location.speed >= 3.5 { // about 13 km/h, avoids walking and normal GPS drift.
+        if location.speed >= lockSpeed {
             releaseWorkItem?.cancel()
             setDriving(true)
-        } else if isDriving, location.speed >= 0, location.speed < 1.0 {
-            // A confirmed near-zero GPS speed is the quickest reliable signal that the car stopped.
+        } else if isDriving, location.speed <= unlockSpeed {
+            // Return after a short confirmation below 18 km/h so GPS jitter does not flicker the lock.
             scheduleRelease(after: 3)
         }
     }

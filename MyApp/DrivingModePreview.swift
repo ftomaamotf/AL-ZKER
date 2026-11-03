@@ -87,7 +87,7 @@ struct DrivingModePreview: View {
                             .font(.title2.weight(.bold))
                             .foregroundStyle(.white)
 
-                        Text("مؤقتاً أثناء الحركة")
+                        Text("مؤقتاً أثناء القيادة")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.75))
                             .multilineTextAlignment(.center)
@@ -110,7 +110,7 @@ struct DrivingModePreview: View {
                         .background(.ultraThinMaterial, in: Capsule())
                         .overlay(Capsule().strokeBorder(Color.teal.opacity(0.3), lineWidth: 0.5))
 
-                        Text("يعود العداد للعمل تلقائياً عند السكون")
+                        Text("يعود العداد للعمل تلقائياً بعد انخفاض السرعة")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
 

@@ -5,22 +5,25 @@ enum BiometricStatisticsDeletionAuthorizer {
         let message: String
     }
 
-    /// Requires Face ID or Touch ID only. Device passcode is intentionally not accepted.
-    static func authorize() async -> Result<Void, Failure> {
+    /// Uses Face ID or Touch ID first, with the iPhone passcode as the secure fallback.
+    static func authorize(
+        reason: String = "تأكيد حذف إحصاءات الذكر",
+        failureMessage: String = "لم يتم تأكيد البصمة، لذلك لم تُحذف الإحصاءات."
+    ) async -> Result<Void, Failure> {
         let context = LAContext()
         var error: NSError?
-        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
-            return .failure(Failure(message: "فعّل بصمة الوجه أو بصمة الإصبع في إعدادات الآيفون أولاً."))
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
+            return .failure(Failure(message: "فعّل رمز دخول للآيفون أولاً."))
         }
 
         do {
             try await context.evaluatePolicy(
-                .deviceOwnerAuthenticationWithBiometrics,
-                localizedReason: "تأكيد حذف إحصاءات الذكر"
+                .deviceOwnerAuthentication,
+                localizedReason: reason
             )
             return .success(())
         } catch {
-            return .failure(Failure(message: "لم يتم تأكيد البصمة، لذلك لم تُحذف الإحصاءات."))
+            return .failure(Failure(message: failureMessage))
         }
     }
 }

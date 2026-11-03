@@ -63,6 +63,86 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         UserDefaults.standard.set(origin, forKey: "watchResetOrigin")
     }
 
+    /// Controlled from the iPhone: replace the Watch counter number with the current time.
+    @Published public private(set) var showsWatchClockCover = UserDefaults.standard.object(forKey: "watchClockCover") as? Bool ?? false
+    private var clockCoverTime: Double { UserDefaults.standard.double(forKey: "watchClockCoverTime") }
+    private var clockCoverOrigin: String { UserDefaults.standard.string(forKey: "watchClockCoverOrigin") ?? "" }
+    public func setWatchClockCover(_ value: Bool) {
+        showsWatchClockCover = value
+        UserDefaults.standard.set(value, forKey: "watchClockCover")
+        UserDefaults.standard.set(max(Date().timeIntervalSince1970, clockCoverTime.nextUp), forKey: "watchClockCoverTime")
+        UserDefaults.standard.set(deviceOrigin, forKey: "watchClockCoverOrigin")
+        sendClockCoverPreference()
+    }
+
+    /// Sends this small preference independently so an optional watch photo or
+    /// large dhikr snapshot can never delay the privacy control.
+    private func sendClockCoverPreference() {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            session.activate()
+            return
+        }
+        let payload: [String: Any] = [
+            "watchClockCover": showsWatchClockCover,
+            "watchClockCoverTime": clockCoverTime,
+            "watchClockCoverOrigin": clockCoverOrigin
+        ]
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { [weak self] _ in
+                self?.queueClockCoverPreference(payload)
+            }
+        } else {
+            queueClockCoverPreference(payload)
+        }
+        try? session.updateApplicationContext(payload)
+    }
+
+    private func queueClockCoverPreference(_ payload: [String: Any]) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.queueClockCoverPreference(payload) }
+            return
+        }
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        for transfer in session.outstandingUserInfoTransfers where transfer.userInfo["watchClockCover"] != nil {
+            transfer.cancel()
+        }
+        session.transferUserInfo(payload)
+    }
+    private func applyClockCoverPreference(_ payload: [String: Any]) {
+        guard let value = payload["watchClockCover"] as? Bool,
+              let time = payload["watchClockCoverTime"] as? Double, time.isFinite, time > 0,
+              let origin = payload["watchClockCoverOrigin"] as? String,
+              time > clockCoverTime || (time == clockCoverTime && origin > clockCoverOrigin) else { return }
+        showsWatchClockCover = value
+        UserDefaults.standard.set(value, forKey: "watchClockCover")
+        UserDefaults.standard.set(time, forKey: "watchClockCoverTime")
+        UserDefaults.standard.set(origin, forKey: "watchClockCoverOrigin")
+    }
+
+    @Published public private(set) var watchClockPhotoData = UserDefaults.standard.data(forKey: "watchClockPhotoData")
+    private var watchClockPhotoTime: Double { UserDefaults.standard.double(forKey: "watchClockPhotoTime") }
+    private var watchClockPhotoOrigin: String { UserDefaults.standard.string(forKey: "watchClockPhotoOrigin") ?? "" }
+    public func setWatchClockPhoto(_ data: Data) {
+        watchClockPhotoData = data
+        UserDefaults.standard.set(data, forKey: "watchClockPhotoData")
+        UserDefaults.standard.set(max(Date().timeIntervalSince1970, watchClockPhotoTime.nextUp), forKey: "watchClockPhotoTime")
+        UserDefaults.standard.set(deviceOrigin, forKey: "watchClockPhotoOrigin")
+        sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
+    }
+    private func applyWatchClockPhoto(_ payload: [String: Any]) {
+        guard let data = payload["watchClockPhotoData"] as? Data,
+              let time = payload["watchClockPhotoTime"] as? Double, time.isFinite, time > 0,
+              let origin = payload["watchClockPhotoOrigin"] as? String,
+              time > watchClockPhotoTime || (time == watchClockPhotoTime && origin > watchClockPhotoOrigin) else { return }
+        watchClockPhotoData = data
+        UserDefaults.standard.set(data, forKey: "watchClockPhotoData")
+        UserDefaults.standard.set(time, forKey: "watchClockPhotoTime")
+        UserDefaults.standard.set(origin, forKey: "watchClockPhotoOrigin")
+    }
+
     @Published public var currentCount: Int = 0
     @Published public var currentZekr: String = "سبحان الله"
     @Published public var target: Int = 33
@@ -116,6 +196,14 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         payload["watchResetVisible"] = showsResetButton
         payload["watchResetTime"] = resetVisibilityTime
         payload["watchResetOrigin"] = resetVisibilityOrigin
+        payload["watchClockCover"] = showsWatchClockCover
+        payload["watchClockCoverTime"] = clockCoverTime
+        payload["watchClockCoverOrigin"] = clockCoverOrigin
+        if let watchClockPhotoData {
+            payload["watchClockPhotoData"] = watchClockPhotoData
+            payload["watchClockPhotoTime"] = watchClockPhotoTime
+            payload["watchClockPhotoOrigin"] = watchClockPhotoOrigin
+        }
         payload["drivingLocked"] = isDrivingLocked
         return payload
     }
@@ -499,7 +587,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         let next = SyncRevision(timestamp: max(Date().timeIntervalSince1970, revision.timestamp.nextUp), origin: deviceOrigin)
         guard let reachedGoal = ledger.recordTap(title: currentZekr, stamp: .init(time: next.timestamp, origin: next.origin)) else { return nil }
         storeRevision(next)
-        statistics.recordTap(origin: deviceOrigin)
+        statistics.recordTap(origin: deviceOrigin, title: currentZekr)
         persistStatistics()
         azkarList = ledger.items
         restoreActiveItem()
@@ -511,6 +599,23 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         }
         sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
         return reachedGoal
+    }
+
+    /// Correct one accidental tap as a ledger operation, so it survives a device merge.
+    public func decrementCurrentZekr() {
+        guard !isDrivingLocked, currentCount > 0,
+              azkarList.contains(where: { $0.title == currentZekr }) else { return }
+        let next = SyncRevision(timestamp: max(Date().timeIntervalSince1970, revision.timestamp.nextUp), origin: deviceOrigin)
+        guard ledger.recordDecrement(title: currentZekr, stamp: .init(time: next.timestamp, origin: next.origin)) else { return }
+        storeRevision(next)
+        statistics.recordDecrement(origin: deviceOrigin, title: currentZekr)
+        persistStatistics()
+        azkarList = ledger.items
+        restoreActiveItem()
+        applyingLedger = true
+        saveAzkarLocally(isLocalChange: false)
+        applyingLedger = false
+        sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
     }
 
     /// Synchronize state changes to paired watch or phone
@@ -626,6 +731,8 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     private func applyIncomingPayload(_ payload: [String: Any]) {
         applyMinusPreference(payload)
         applyResetPreference(payload)
+        applyClockCoverPreference(payload)
+        applyWatchClockPhoto(payload)
         if payload["action"] as? String == "refreshWatchPurchase" {
             // Connectivity is a refresh hint, never proof of payment.
             Task { await WatchPurchaseAccess.shared.refresh() }
