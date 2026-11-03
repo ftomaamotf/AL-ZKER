@@ -51,7 +51,7 @@ struct DhikrRemindersView: View {
                 }
                 .onDelete(perform: deleteCustomReminders)
                 Button {
-                    editor = DhikrCustomReminder(title: "تذكير بالذكر", message: "لا تنسَ ذكر الله", minutes: 20 * 60)
+                    editor = DhikrCustomReminder(title: "تذكير", message: "لا تنسَ ذكر الله", minutes: 20 * 60)
                 } label: {
                     Label("تذكير جديد", systemImage: "plus.circle.fill")
                 }
@@ -170,7 +170,7 @@ private struct DhikrCustomReminderEditor: View {
                     Button("حفظ") {
                         reminder.title = reminder.title.trimmingCharacters(in: .whitespacesAndNewlines)
                         reminder.message = reminder.message.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if reminder.title.isEmpty { reminder.title = "تذكير بالذكر" }
+                        if reminder.title.isEmpty || reminder.title == "تذكير بالذكر" { reminder.title = "تذكير" }
                         if reminder.message.isEmpty { reminder.message = "لا تنسَ ذكر الله" }
                         onSave(reminder)
                         dismiss()
@@ -186,7 +186,17 @@ extension DhikrCustomReminder {
 
     static func loadAll() -> [DhikrCustomReminder] {
         guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let reminders = try? JSONDecoder().decode([DhikrCustomReminder].self, from: data) else { return [] }
+              var reminders = try? JSONDecoder().decode([DhikrCustomReminder].self, from: data) else { return [] }
+        var didMigrate = false
+        for i in 0..<reminders.count {
+            if reminders[i].title == "تذكير بالذكر" {
+                reminders[i].title = "تذكير"
+                didMigrate = true
+            }
+        }
+        if didMigrate {
+            saveAll(reminders)
+        }
         return reminders
     }
 

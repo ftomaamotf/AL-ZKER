@@ -131,7 +131,13 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         for reminder in reminders where reminder.isEnabled {
             let content = UNMutableNotificationContent()
-            content.title = reminder.title
+            var reminderTitle = reminder.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if reminderTitle == "تذكير بالذكر" || reminderTitle.isEmpty {
+                reminderTitle = "تذكير"
+            } else if reminderTitle.hasSuffix(" بالذكر") {
+                reminderTitle = String(reminderTitle.dropLast(" بالذكر".count))
+            }
+            content.title = reminderTitle
             content.body = reminder.message
             content.sound = .default
             if #available(iOS 15.0, *) {
