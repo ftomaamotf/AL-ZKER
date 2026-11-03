@@ -840,6 +840,13 @@ public struct PhoneCompanionView: View {
             }
             .frame(width: 190, height: 190)
             .environment(\.layoutDirection, .leftToRight)
+            .contentShape(Circle())
+            .onLongPressGesture(minimumDuration: 0.5) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    sync.setWatchClockCover(!sync.showsWatchClockCover)
+                }
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            }
             Text("\(max(0, sync.target - sync.currentCount).formatted()) مرات لإكمال الهدف")
                 .font(.caption)
                 .foregroundStyle(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)

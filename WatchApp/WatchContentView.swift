@@ -219,6 +219,8 @@ struct WatchContentView: View {
                     )
                 }
                 .offset(y: 0)
+                .allowsHitTesting(false)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else {
                 // الرقم والهدف في المنتصف
                 VStack(spacing: 2) {
@@ -237,9 +239,11 @@ struct WatchContentView: View {
                 }
                 .padding(12)
                 .offset(y: -22)
+                .allowsHitTesting(false)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
-            if sync.showsDecrementButton {
+            if !sync.showsWatchClockCover && sync.showsDecrementButton {
                 Button { decrementCount() } label: {
                     Image(systemName: "minus")
                         .font(.system(size: 15, weight: .semibold))
@@ -254,7 +258,7 @@ struct WatchContentView: View {
                 .accessibilityLabel("إنقاص عداد الذكر بمقدار واحد")
             }
 
-            if sync.showsResetButton {
+            if !sync.showsWatchClockCover && sync.showsResetButton {
                 Button {
                     pendingScreenReset = sync.azkarList.first { $0.title == sync.currentZekr }
                     showScreenResetConfirmation = pendingScreenReset != nil
@@ -278,6 +282,12 @@ struct WatchContentView: View {
         .contentShape(Circle())
         .onTapGesture {
             incrementCount()
+        }
+        .onLongPressGesture(minimumDuration: 0.45) {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                sync.setWatchClockCover(!sync.showsWatchClockCover)
+            }
+            WKInterfaceDevice.current().play(.click)
         }
     }
 
