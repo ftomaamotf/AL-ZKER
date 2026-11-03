@@ -14,7 +14,11 @@ struct FadhkuruniWatchApp: App {
                     await WatchPurchaseAccess.shared.refresh()
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { TapFeedback.shared.prepare(); Task { await WatchPurchaseAccess.shared.refresh() } }
+                    if phase == .active {
+                        TapFeedback.shared.prepare()
+                        WatchSyncService.shared.checkDrivingStatusFromPhone()
+                        Task { await WatchPurchaseAccess.shared.refresh() }
+                    }
                 }
         }
     }

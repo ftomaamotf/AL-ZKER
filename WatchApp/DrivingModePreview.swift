@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(WatchKit)
+import WatchKit
+#endif
 
 // Simulator-only UI demonstration; this does not detect vehicle motion.
 struct DrivingModePreviewGate<Content: View>: View {
@@ -95,7 +98,7 @@ struct DrivingModePreview: View {
 
                     Spacer(minLength: 2)
 
-                    // 3. Status badge. The safety lock has no bypass.
+                    // 3. Status badge & quick refresh
                     VStack(spacing: 3) {
                         HStack(spacing: 4) {
                             Circle().fill(Color.green).frame(width: 5, height: 5)
@@ -108,14 +111,49 @@ struct DrivingModePreview: View {
                         .background(.ultraThinMaterial, in: Capsule())
                         .overlay(Capsule().strokeBorder(Color.teal.opacity(0.3), lineWidth: 0.5))
 
+                        if !isPreview {
+                            Button {
+                                #if os(watchOS)
+                                WKInterfaceDevice.current().play(.click)
+                                #endif
+                                sync.checkDrivingStatusFromPhone()
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.system(size: 8, weight: .bold))
+                                    Text("تحديث عند التوقف")
+                                        .font(.system(size: 9, weight: .medium))
+                                }
+                                .foregroundStyle(.mint)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.mint.opacity(0.12), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
                 .padding(.horizontal, 4)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                #if os(watchOS)
+                WKInterfaceDevice.current().play(.click)
+                #endif
+                sync.checkDrivingStatusFromPhone()
+            }
         }
         .environment(\.layoutDirection, .rightToLeft)
         .preferredColorScheme(.dark)
+        .task {
+            guard !isPreview else { return }
+            sync.checkDrivingStatusFromPhone()
+            while !Task.isCancelled && sync.isDrivingLocked {
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                sync.checkDrivingStatusFromPhone()
+            }
+        }
     }
 }

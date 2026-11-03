@@ -479,6 +479,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             session.activate()
             return
         }
+        checkDrivingStatusFromPhone()
         if !session.receivedApplicationContext.isEmpty {
             handleIncomingPayload(session.receivedApplicationContext)
         }
@@ -513,6 +514,38 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     // MARK: - طلب المزامنة الفورية من الآيفون
     public func requestSyncFromPhone() {
         refreshSynchronization()
+    }
+
+    /// فحص حالة قفل القيادة فوراً وبشكل خفيف جداً من الآيفون
+    public func checkDrivingStatusFromPhone() {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            session.activate()
+            return
+        }
+        if session.isReachable {
+            let request: [String: Any] = ["action": "checkDrivingStatus"]
+            session.sendMessage(request, replyHandler: { [weak self] reply in
+                if let locked = reply["drivingLocked"] as? Bool {
+                    DispatchQueue.main.async {
+                        if self?.isDrivingLocked != locked {
+                            self?.isDrivingLocked = locked
+                            UserDefaults.standard.set(locked, forKey: "fadhkuruni_driving_locked")
+                        }
+                    }
+                }
+            }, errorHandler: nil)
+        } else if !session.receivedApplicationContext.isEmpty {
+            if let locked = session.receivedApplicationContext["drivingLocked"] as? Bool {
+                DispatchQueue.main.async {
+                    if self.isDrivingLocked != locked {
+                        self.isDrivingLocked = locked
+                        UserDefaults.standard.set(locked, forKey: "fadhkuruni_driving_locked")
+                    }
+                }
+            }
+        }
     }
 
     /// Count one local tap without emitting a destructive reset at cycle boundaries.
@@ -632,6 +665,8 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         DispatchQueue.main.async {
             if message["action"] as? String == "requestSync" {
                 replyHandler(self.makeSnapshot())
+            } else if message["action"] as? String == "checkDrivingStatus" {
+                replyHandler(["drivingLocked": self.isDrivingLocked])
             } else {
                 replyHandler(["received": true])
             }
@@ -655,6 +690,14 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     }
 
     private func applyIncomingPayload(_ payload: [String: Any]) {
+        if let action = payload["action"] as? String, action == "drivingLockUpdate",
+           let locked = payload["drivingLocked"] as? Bool {
+            if isDrivingLocked != locked {
+                isDrivingLocked = locked
+                UserDefaults.standard.set(locked, forKey: "fadhkuruni_driving_locked")
+            }
+            return
+        }
         applyMinusPreference(payload)
         applyResetPreference(payload)
         applyClockCoverPreference(payload)

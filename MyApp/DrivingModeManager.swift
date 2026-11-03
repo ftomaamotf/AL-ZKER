@@ -23,13 +23,13 @@ final class DrivingModeManager: NSObject, ObservableObject, CLLocationManagerDel
         isDriving = WatchSyncService.shared.isDrivingLocked
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
-        locationManager.distanceFilter = 10
+        locationManager.distanceFilter = kCLDistanceFilterNone
     }
 
     func start() {
         startSpeedUpdates()
         // Do not leave a previously mirrored lock active forever if a fresh location is delayed.
-        if isDriving { scheduleRelease(after: 8) }
+        if isDriving { scheduleRelease(after: 6) }
     }
 
     private func startSpeedUpdates() {
@@ -60,8 +60,9 @@ final class DrivingModeManager: NSObject, ObservableObject, CLLocationManagerDel
             releaseWorkItem?.cancel()
             setDriving(true)
         } else if isDriving, location.speed <= unlockSpeed {
-            // Return after a short confirmation below 18 km/h so GPS jitter does not flicker the lock.
-            scheduleRelease(after: 3)
+            // التحرير السريع عند التوقف التام (أقل من 3 كم/س)، مع الحفاظ على تأكيد قصير ضد تقلبات GPS
+            let confirmationTime: TimeInterval = (location.speed <= 0.8) ? 1.0 : 2.0
+            scheduleRelease(after: confirmationTime)
         }
     }
 

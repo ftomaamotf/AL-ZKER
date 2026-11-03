@@ -18,7 +18,41 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         guard isDrivingLocked != value else { return }
         isDrivingLocked = value
         UserDefaults.standard.set(value, forKey: "fadhkuruni_driving_locked")
+        sendUrgentDrivingLockMessage(value)
         sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
+    }
+
+    /// إرسال إشارة فك/تفعيل القفل فوراً وبأقصى سرعة إلى الساعة بدون أي تأخير
+    public func sendUrgentDrivingLockMessage(_ value: Bool) {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            session.activate()
+            return
+        }
+        let urgentPayload: [String: Any] = [
+            "action": "drivingLockUpdate",
+            "drivingLocked": value,
+            "timestamp": Date().timeIntervalSince1970
+        ]
+        if session.isReachable {
+            session.sendMessage(urgentPayload, replyHandler: nil, errorHandler: { _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    if session.isReachable {
+                        session.sendMessage(urgentPayload, replyHandler: nil, errorHandler: nil)
+                    }
+                }
+            })
+        }
+        try? session.updateApplicationContext(urgentPayload)
+        for delay in [0.6, 1.4, 2.5, 4.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, self.isDrivingLocked == value else { return }
+                if session.isReachable {
+                    session.sendMessage(urgentPayload, replyHandler: nil, errorHandler: nil)
+                }
+            }
+        }
     }
 
     @Published public private(set) var showsDecrementButton = UserDefaults.standard.object(forKey: "watchMinusVisible") as? Bool ?? true
@@ -706,6 +740,11 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         DispatchQueue.main.async {
             if message["action"] as? String == "requestSync" {
                 replyHandler(self.makeSnapshot())
+            } else if message["action"] as? String == "checkDrivingStatus" {
+                replyHandler([
+                    "drivingLocked": self.isDrivingLocked,
+                    "timestamp": Date().timeIntervalSince1970
+                ])
             } else {
                 replyHandler(["received": true])
             }
