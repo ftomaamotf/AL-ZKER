@@ -26,13 +26,14 @@ struct BuiltInAdhan: Identifiable, Hashable {
     let title: String
     let subtitle: String
     let fileName: String
+    let fullFileName: String
 
     static let all: [BuiltInAdhan] = [
-        .init(id: "makkah-classic", title: "مكة — الحرم", subtitle: "تسجيل الحرم المكي", fileName: "adhan-makkah-classic.caf"),
-        .init(id: "makkah-maghrib", title: "مكة — المغرب", subtitle: "تسجيل أذان المغرب من الحرم", fileName: "adhan-makkah-maghrib.caf"),
-        .init(id: "casablanca", title: "الدار البيضاء", subtitle: "مسجد الحسن الثاني", fileName: "adhan-casablanca.caf"),
-        .init(id: "calm", title: "أذان هادئ", subtitle: "نغمة أذان واضحة وهادئة", fileName: "adhan-calm.caf"),
-        .init(id: "short", title: "أذان مختصر", subtitle: "خيار قصير للتنبيه", fileName: "adhan-short.caf")
+        .init(id: "makkah-classic", title: "مكة — الحرم", subtitle: "تسجيل الحرم المكي (كامل 3:17 د)", fileName: "adhan-makkah-classic.caf", fullFileName: "adhan-makkah-classic-full.m4a"),
+        .init(id: "makkah-maghrib", title: "مكة — المغرب", subtitle: "أذان المغرب من الحرم (كامل 5:01 د)", fileName: "adhan-makkah-maghrib.caf", fullFileName: "adhan-makkah-maghrib-full.m4a"),
+        .init(id: "casablanca", title: "الدار البيضاء", subtitle: "مسجد الحسن الثاني (كامل 2:55 د)", fileName: "adhan-casablanca.caf", fullFileName: "adhan-casablanca-full.m4a"),
+        .init(id: "calm", title: "أذان هادئ", subtitle: "نغمة أذان واضحة وهادئة (كامل 2:54 د)", fileName: "adhan-calm.caf", fullFileName: "adhan-calm-full.m4a"),
+        .init(id: "short", title: "أذان مختصر", subtitle: "خيار قصير للتنبيه (45 ثانية)", fileName: "adhan-short.caf", fullFileName: "adhan-short-full.m4a")
     ]
 
     private static let preferencePrefix = "fadhkuruni_prayer_builtin_adhan_"
@@ -129,9 +130,11 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
         playingBuiltInAdhanID = nil
     }
 
-    func playBuiltInAdhan(_ adhan: BuiltInAdhan) {
+    func playBuiltInAdhan(_ adhan: BuiltInAdhan, full: Bool = false) {
         stopPlayback()
-        guard let url = Bundle.main.url(forResource: adhan.fileName, withExtension: nil) else {
+        let targetName = full ? adhan.fullFileName : adhan.fileName
+        guard let url = Bundle.main.url(forResource: targetName, withExtension: nil)
+            ?? Bundle.main.url(forResource: adhan.fileName, withExtension: nil) else {
             message = "تعذر العثور على ملف الأذان. أعد تثبيت التطبيق ثم جرّب مرة أخرى."
             return
         }
@@ -143,7 +146,26 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
             player?.play()
             playingBuiltInAdhanID = adhan.id
         } catch {
-            message = "تعذر تشغيل معاينة الأذان."
+            message = "تعذر تشغيل الأذان."
+        }
+    }
+
+    /// تشغيل الأذان المختار للصلاة كاملاً
+    func playFullAdhan(for prayerID: String) {
+        let alertMode = PrayerAlertPreference.mode(for: prayerID)
+        switch alertMode {
+        case .none, .silent:
+            return
+        case .system, .builtIn:
+            let adhan = BuiltInAdhan.selected(for: prayerID)
+            playBuiltInAdhan(adhan, full: true)
+        case .custom:
+            if hasRecording(for: prayerID) {
+                playRecording(for: prayerID)
+            } else {
+                let adhan = BuiltInAdhan.selected(for: prayerID)
+                playBuiltInAdhan(adhan, full: true)
+            }
         }
     }
 
@@ -281,8 +303,8 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
             ]
             recorder = try AVAudioRecorder(url: recordingURL(for: prayerID), settings: settings)
             recorder?.delegate = self
-            // حد أقصى 29.5 ثانية لضمان تشغيله كاملاً عبر نظام إشعارات iOS
-            recorder?.record(forDuration: 29.5)
+            // تسجيل حتى 5 دقائق لتمكين تسجيل الأذان كاملاً
+            recorder?.record(forDuration: 300)
             recordingPrayerID = prayerID
         } catch {
             message = "تعذر بدء التسجيل."

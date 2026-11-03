@@ -4,7 +4,7 @@ struct AdhanAttributionsView: View {
     var body: some View {
         List {
             Section {
-                Text("تتضمن الأصوات المدمجة مقاطع مختارة لا تتجاوز 30 ثانية، لتتوافق مع حد إشعارات الآيفون.")
+                Text("تتضمن الأصوات المدمجة تسجيلات أذان كاملة عالية الدقة داخل التطبيق، ومقاطع متوافقة مع حد إشعارات الآيفون (30 ثانية).")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

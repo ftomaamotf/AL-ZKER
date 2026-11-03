@@ -251,7 +251,35 @@ public final class NotificationManager: NSObject, UNUserNotificationCenterDelega
     }
     
     public func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        let identifier = notification.request.identifier
+        if identifier.hasPrefix("fadhkuruni.prayer.") {
+            let prayerID = String(identifier.dropFirst("fadhkuruni.prayer.".count))
+            Task { @MainActor in
+                PrayerAdhanRecorder.shared.playFullAdhan(for: prayerID)
+            }
+        } else if identifier.hasPrefix("fadhkuruni.test.prayer.") {
+            let prayerID = String(identifier.dropFirst("fadhkuruni.test.prayer.".count))
+            Task { @MainActor in
+                PrayerAdhanRecorder.shared.playFullAdhan(for: prayerID)
+            }
+        }
         completionHandler([.banner, .list, .sound])
+    }
+
+    public func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        let identifier = response.notification.request.identifier
+        if identifier.hasPrefix("fadhkuruni.prayer.") {
+            let prayerID = String(identifier.dropFirst("fadhkuruni.prayer.".count))
+            Task { @MainActor in
+                PrayerAdhanRecorder.shared.playFullAdhan(for: prayerID)
+            }
+        } else if identifier.hasPrefix("fadhkuruni.test.prayer.") {
+            let prayerID = String(identifier.dropFirst("fadhkuruni.test.prayer.".count))
+            Task { @MainActor in
+                PrayerAdhanRecorder.shared.playFullAdhan(for: prayerID)
+            }
+        }
+        completionHandler()
     }
 }
 
@@ -2082,7 +2110,7 @@ private struct PrayerAlertDetailView: View {
                                 if recorder.playingBuiltInAdhanID == adhan.id {
                                     recorder.stopPlayback()
                                 } else {
-                                    recorder.playBuiltInAdhan(adhan)
+                                    recorder.playBuiltInAdhan(adhan, full: true)
                                 }
                             } label: {
                                 Image(systemName: recorder.playingBuiltInAdhanID == adhan.id ? "stop.circle.fill" : "play.circle.fill")
@@ -2090,13 +2118,13 @@ private struct PrayerAlertDetailView: View {
                                     .foregroundStyle(.green)
                             }
                             .buttonStyle(.borderless)
-                            .accessibilityLabel(recorder.playingBuiltInAdhanID == adhan.id ? "إيقاف المعاينة" : "معاينة الصوت")
+                            .accessibilityLabel(recorder.playingBuiltInAdhanID == adhan.id ? "إيقاف المعاينة" : "معاينة الصوت كاملاً")
                         }
                     }
                 } header: {
                     Text("اختر الأذان")
                 } footer: {
-                    Text("يشغّل إشعار الآيفون أول 30 ثانية فقط من الصوت المختار.")
+                    Text("يشغّل إشعار شاشة القفل أول 30 ثانية (حد نظام آبل)، ويتابع الأذان كاملاً عند لمس الإشعار أو فتح التطبيق.")
                 }
             }
 
@@ -2127,7 +2155,7 @@ private struct PrayerAlertDetailView: View {
                 } header: {
                     Text("أذانك الخاص")
                 } footer: {
-                    Text("التسجيل حتى 5 دقائق، بينما يشغّل إشعار الآيفون أول 30 ثانية فقط.")
+                    Text("التسجيل حتى 5 دقائق كاملاً، ويشغّل إشعار شاشة القفل أول 30 ثانية بحسب نظام آبل.")
                 }
             }
             Section {
