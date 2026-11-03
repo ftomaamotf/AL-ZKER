@@ -695,6 +695,14 @@ struct CrownOptionsView: View {
                         }
                         .buttonStyle(.plain)
                         .padding(.top, 2)
+
+                        NavigationLink {
+                            WatchButtonsGuideView { isPresented = false }
+                        } label: {
+                            CrownOptionCard(title: "دليل استخدام الأزرار", subtitle: "شرح لكل زر وإيماءة", symbol: "questionmark.circle.fill", tint: .teal)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 2)
                     }
                     .padding(.horizontal, 2)
                     .padding(.bottom, 16)

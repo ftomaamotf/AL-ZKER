@@ -1523,6 +1523,13 @@ public struct PhoneCompanionView: View {
                     Text("تعرض الشارة آخر عدد محفوظ للذكر الحالي، وتختفي عند الصفر. اسمح بالإشعارات والشارات من إعدادات الآيفون. يتحدث عدد الساعة عند وصول المزامنة إلى الآيفون.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                Section("دليل الاستخدام") {
+                    NavigationLink {
+                        PhoneButtonsGuideView { }
+                    } label: {
+                        settingsLabel("دليل استخدام الأزرار", subtitle: "شرح لكل زر وطريقة ضغطه واستخدامه", icon: "questionmark.circle.fill")
+                    }
+                }
                 Section("على الآيفون") {
                     HStack(spacing: 12) {
                         Image(systemName: "hand.raised.fill")
