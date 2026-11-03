@@ -215,9 +215,7 @@ struct WatchContentView: View {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     EmeraldAnalogClock(
                         date: context.date,
-                        photoData: sync.watchClockPhotoData,
-                        count: sync.currentCount,
-                        target: sync.target
+                        photoData: sync.watchClockPhotoData
                     )
                 }
                 .offset(y: 0)
@@ -286,8 +284,6 @@ struct WatchContentView: View {
 private struct EmeraldAnalogClock: View {
     let date: Date
     let photoData: Data?
-    let count: Int
-    let target: Int
 
     private var calendar: Calendar { Calendar.current }
     private var hourAngle: Double {
@@ -368,34 +364,6 @@ private struct EmeraldAnalogClock: View {
                     .offset(y: -51)
                     .rotationEffect(.degrees(Double(tick) * 30))
             }
-
-            // نافذة رقم عداد الذكر داخل ميناء الساعة بحيث لا تحجب العداد أبداً
-            VStack(spacing: 0) {
-                Text("\(count)")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.green)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .shadow(color: .black.opacity(0.85), radius: 3)
-
-                if target > 0 {
-                    Text("الهدف \(target)")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .shadow(color: .black.opacity(0.85), radius: 2)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 2)
-            .background(
-                Capsule()
-                    .fill(Color.black.opacity(0.42))
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(Color.white.opacity(0.20), lineWidth: 0.8)
-                    )
-            )
-            .offset(y: 22)
 
             clockHand(length: 31, width: 5, color: .white, angle: hourAngle)
             clockHand(length: 43, width: 3, color: .white.opacity(0.92), angle: minuteAngle)
