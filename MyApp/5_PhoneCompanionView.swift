@@ -824,15 +824,15 @@ public struct PhoneCompanionView: View {
             }
         }
         .padding(.vertical, 18)
-        .frame(maxWidth: .infinity, minHeight: 340, maxHeight: 340, alignment: .top)
+        .frame(maxWidth: .infinity, minHeight: 360, maxHeight: 360, alignment: .top)
         .background(counterCardBackground)
         .padding(.horizontal, 16)
     }
 
     private var normalCounterCardContent: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             // مساحة ثابتة تطابق شريط معلومات القبلة، فتظل الدائرتان في الموضع نفسه.
-            Color.clear.frame(height: 16)
+            Color.clear.frame(height: 14)
             ZStack {
                 Circle().stroke(Color.green.opacity(0.10), lineWidth: 7)
                 Circle()
@@ -886,7 +886,11 @@ public struct PhoneCompanionView: View {
             Text("\(max(0, sync.target - sync.currentCount).formatted()) مرات لإكمال الهدف")
                 .font(.caption)
                 .foregroundStyle(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
-                .padding(.top, 8)
+                .padding(.top, 4)
+
+            // ملخصات الذكر تحت رقم مرات إكمال الهدف
+            dhikrSummaryPill
+                .padding(.top, 4)
 
             // مؤشر قفل الأخطاء
             HStack(spacing: 6) {
@@ -897,17 +901,62 @@ public struct PhoneCompanionView: View {
             }
                 .foregroundColor(.red)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 5)
+                .padding(.vertical, 4)
                 .background(Color.red.opacity(0.12))
                 .clipShape(Capsule())
-                .padding(.top, 4)
+                .padding(.top, 2)
                 .opacity(isButtonsLocked ? 1 : 0)
                 .accessibilityHidden(!isButtonsLocked)
         }
-        .padding(.vertical, 24)
-        .frame(maxWidth: .infinity, minHeight: 340, maxHeight: 340, alignment: .top)
+        .padding(.vertical, 18)
+        .frame(maxWidth: .infinity, minHeight: 360, maxHeight: 360, alignment: .top)
         .background(counterCardBackground)
         .padding(.horizontal, 16)
+    }
+
+    // MARK: - كبسولة ملخص الذكر اليومي داخل بطاقة العداد
+    private var dhikrSummaryPill: some View {
+        NavigationLink {
+            DhikrStatisticsView()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chart.bar.xaxis")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.green)
+
+                Text(dhikrComparisonSummary)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isButtonsLocked ? Color.black.opacity(0.7) : .primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary.opacity(0.6))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.green.opacity(0.25), lineWidth: 0.8))
+        }
+        .buttonStyle(.plain)
+        .allowsHitTesting(!isButtonsLocked)
+        .accessibilityLabel("ملخص الذكر: \(dhikrComparisonSummary)")
+    }
+
+    private var dhikrComparisonSummary: String {
+        let current = sync.statistics.totalToday(for: sync.currentZekr)
+        let previous = sync.statistics.totalYesterday(for: sync.currentZekr)
+        guard previous > 0 else {
+            return current > 0 ? "تسبيح اليوم: \(current.formatted())" : "ملخص الذكر اليوم: 0"
+        }
+        if current > previous {
+            return "اليوم: \(current.formatted()) (أكثر من الأمس بـ \((current - previous).formatted()))"
+        } else if current < previous {
+            return "اليوم: \(current.formatted()) (أقل من الأمس بـ \((previous - current).formatted()))"
+        } else {
+            return "اليوم: \(current.formatted()) (مثل الأمس تماماً)"
+        }
     }
 
     // MARK: - بطاقة القبلة والكعبة المدمجة داخل العداد
@@ -1140,7 +1189,7 @@ public struct PhoneCompanionView: View {
             .padding(.top, 2)
         }
         .padding(.vertical, 18)
-        .frame(maxWidth: .infinity, minHeight: 340, maxHeight: 340, alignment: .top)
+        .frame(maxWidth: .infinity, minHeight: 360, maxHeight: 360, alignment: .top)
         .background(counterCardBackground)
         .padding(.horizontal, 16)
     }
