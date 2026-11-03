@@ -2036,7 +2036,7 @@ private struct PrayerAlertDetailView: View {
 
             Section("نوع التنبيه") {
                 Picker("نوع التنبيه", selection: $mode) {
-                    Text("بدون صوت").tag(PrayerAlertMode.none)
+                    Text("بدون إشعار").tag(PrayerAlertMode.none)
                     Text("صامت").tag(PrayerAlertMode.silent)
                     Text("افتراضي").tag(PrayerAlertMode.system)
                     Text("مدمج").tag(PrayerAlertMode.builtIn)
@@ -2130,6 +2130,17 @@ private struct PrayerAlertDetailView: View {
                     Text("التسجيل حتى 5 دقائق، بينما يشغّل إشعار الآيفون أول 30 ثانية فقط.")
                 }
             }
+            Section {
+                Button {
+                    recorder.scheduleTestNotification(for: prayerID, title: title)
+                } label: {
+                    Label("تجربة الإشعار الآن (يصلك بعد 5 ثوانٍ)", systemImage: "bell.badge.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.green)
+                }
+            } footer: {
+                Text("اضغط للتجربة ثم يمكنك قفل شاشة الآيفون لمشاهدة التنبيه وسماع الصوت المختار.")
+            }
         }
         .navigationTitle("إشعار: \(title)")
         .navigationBarTitleDisplayMode(.inline)
@@ -2145,7 +2156,10 @@ private struct PrayerAlertDetailView: View {
             if recorder.recordingPrayerID == prayerID { recorder.stopRecording() }
         }
         .fileImporter(isPresented: $isImportingAudio, allowedContentTypes: [.audio]) { result in
-            if case .success(let url) = result { recorder.importAudio(from: url, for: prayerID) }
+            if case .success(let url) = result {
+                recorder.importAudio(from: url, for: prayerID)
+                mode = .custom
+            }
         }
     }
 

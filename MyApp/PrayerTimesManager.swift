@@ -24,6 +24,16 @@ final class PrayerTimesManager: NSObject, ObservableObject, CLLocationManagerDel
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
+
+        // استرجاع آخر إحداثيات معروفة فوراً لحساب المواقيت وجدولة التنبيهات دون انتظار GPS
+        let savedLat = UserDefaults.standard.double(forKey: "fadhkuruni_last_latitude")
+        let savedLon = UserDefaults.standard.double(forKey: "fadhkuruni_last_longitude")
+        if savedLat != 0 || savedLon != 0 {
+            let coord = CLLocationCoordinate2D(latitude: savedLat, longitude: savedLon)
+            lastCoordinate = coord
+            times = PrayerTimeCalculator.times(for: Date(), coordinate: coord)
+            saveCalculatedPrayerMinutes(from: times)
+        }
     }
 
     func refresh() {
@@ -75,6 +85,8 @@ final class PrayerTimesManager: NSObject, ObservableObject, CLLocationManagerDel
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last, location.horizontalAccuracy >= 0 else { return }
         lastCoordinate = location.coordinate
+        UserDefaults.standard.set(location.coordinate.latitude, forKey: "fadhkuruni_last_latitude")
+        UserDefaults.standard.set(location.coordinate.longitude, forKey: "fadhkuruni_last_longitude")
         applyManualAdjustments()
         isLoading = false
         statusMessage = times.isEmpty ? "تعذر حساب المواقيت لهذا الموقع" : "تتحدث المواقيت حسب موقعك"

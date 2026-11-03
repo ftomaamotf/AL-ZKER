@@ -134,9 +134,13 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
             content.title = reminder.title
             content.body = reminder.message
             content.sound = .default
+            if #available(iOS 15.0, *) {
+                content.interruptionLevel = .timeSensitive
+            }
             var components = DateComponents()
             components.hour = reminder.minutes / 60
             components.minute = reminder.minutes % 60
+            components.second = 0
             center.add(UNNotificationRequest(identifier: "fadhkuruni.reminder.custom.\(reminder.id.uuidString)", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)))
         }
     }
@@ -235,8 +239,11 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
             case .custom:
                 content.sound = PrayerAdhanRecorder.notificationSound(for: name) ?? .default
             }
-            let minutes = (baseMinutes + PrayerTimeAdjustmentStore.offset(for: name) + 1_440) % 1_440
-            var components = DateComponents(); components.hour = minutes / 60; components.minute = minutes % 60
+            let minutes = (baseMinutes + 1_440) % 1_440
+            var components = DateComponents()
+            components.hour = minutes / 60
+            components.minute = minutes % 60
+            components.second = 0
             center.add(UNNotificationRequest(identifier: "fadhkuruni.prayer.\(name)", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)))
         }
     }

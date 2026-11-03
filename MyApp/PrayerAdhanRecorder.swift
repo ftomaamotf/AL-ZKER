@@ -156,7 +156,7 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
     func importAudio(from sourceURL: URL, for prayerID: String) {
         let fileExtension = sourceURL.pathExtension.lowercased()
         guard Self.supportedExtensions.contains(fileExtension) else {
-            message = "اختر ملف WAV أو CAF أو AIFF ليعمل الصوت في إشعار الصلاة."
+            message = "اختر ملف صوتي (MP3 أو M4A أو WAV أو CAF أو AIFF)."
             return
         }
         guard sourceURL.startAccessingSecurityScopedResource() else {
@@ -168,12 +168,78 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
             stopPlayback()
             try FileManager.default.createDirectory(at: Self.soundsDirectory, withIntermediateDirectories: true)
             Self.recordingURLs(for: prayerID).forEach { try? FileManager.default.removeItem(at: $0) }
-            let destination = Self.soundsDirectory.appendingPathComponent("adhan-\(prayerID).\(fileExtension)")
-            try FileManager.default.copyItem(at: sourceURL, to: destination)
-            message = "تمت إضافة الصوت إلى أذان الصلاة."
+            let destination = Self.soundsDirectory.appendingPathComponent("adhan-\(prayerID).caf")
+            
+            // تحويل وضبط الصوت إلى صيغة متوافقة تماماً مع إشعارات نظام iOS بحد أقصى 29.5 ثانية
+            try Self.convertToNotificationCAF(sourceURL: sourceURL, destinationURL: destination)
+            
+            message = "تمت إضافة الصوت بنجاح وضبطه ليعمل مع إشعارات الآيفون."
+            PrayerAlertPreference.set(.custom, for: prayerID)
             DhikrSummaryNotificationScheduler.shared.refreshPrayerReminders()
         } catch {
-            message = "تعذر إضافة الملف."
+            message = "تعذر إضافة الملف الصوتي: \(error.localizedDescription)"
+        }
+    }
+
+    /// تحويل وقص أي ملف صوتي إلى صيغة Linear PCM داخل ملف .caf متوافق مع نظام إشعارات iOS
+    private static func convertToNotificationCAF(sourceURL: URL, destinationURL: URL, maxDuration: Double = 29.5) throws {
+        let sourceFile = try AVAudioFile(forReading: sourceURL)
+        let format = sourceFile.processingFormat
+        let maxFrames = AVAudioFramePosition(min(Double(sourceFile.length), maxDuration * format.sampleRate))
+
+        let targetSettings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: min(format.sampleRate, 44100.0),
+            AVNumberOfChannelsKey: min(format.channelCount, 2),
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsFloatKey: false
+        ]
+
+        let outputFile = try AVAudioFile(forWriting: destinationURL, settings: targetSettings)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4096)!
+        var framesRemaining = maxFrames
+
+        while framesRemaining > 0 && sourceFile.framePosition < sourceFile.length {
+            let framesToRead = AVAudioFrameCount(min(AVAudioFramePosition(buffer.frameCapacity), framesRemaining))
+            try sourceFile.read(into: buffer, frameCount: framesToRead)
+            if buffer.frameLength == 0 { break }
+            try outputFile.write(from: buffer)
+            framesRemaining -= AVAudioFramePosition(buffer.frameLength)
+        }
+    }
+
+    func scheduleTestNotification(for prayerID: String, title: String) {
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        content.title = "حان وقت صلاة \(title)"
+        content.body = "حي على الصلاة — تجربة تنبيه الصلاة والصوت المختار"
+        if #available(iOS 15.0, *) {
+            content.interruptionLevel = .timeSensitive
+        }
+        let alertMode = PrayerAlertPreference.mode(for: prayerID)
+        switch alertMode {
+        case .none:
+            content.sound = nil
+        case .silent:
+            content.sound = nil
+        case .system:
+            content.sound = .default
+        case .builtIn:
+            content.sound = BuiltInAdhan.notificationSound(for: prayerID)
+        case .custom:
+            content.sound = Self.notificationSound(for: prayerID) ?? .default
+        }
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+        let request = UNNotificationRequest(identifier: "fadhkuruni.test.prayer.\(prayerID)", content: content, trigger: trigger)
+        center.add(request) { [weak self] error in
+            Task { @MainActor in
+                if error == nil {
+                    self?.message = "تمت جدولة إشعار التجربة بنجاح! سيصلك التنبيه خلال 5 ثوانٍ لسماع الصوت."
+                } else {
+                    self?.message = "تعذر إرسال التجربة، تأكد من تفعيل إذن الإشعارات."
+                }
+            }
         }
     }
 
@@ -215,7 +281,8 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
             ]
             recorder = try AVAudioRecorder(url: recordingURL(for: prayerID), settings: settings)
             recorder?.delegate = self
-            recorder?.record(forDuration: 300)
+            // حد أقصى 29.5 ثانية لضمان تشغيله كاملاً عبر نظام إشعارات iOS
+            recorder?.record(forDuration: 29.5)
             recordingPrayerID = prayerID
         } catch {
             message = "تعذر بدء التسجيل."
@@ -227,7 +294,7 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
         Self.recordingURL(for: prayerID)
     }
 
-    private nonisolated static let supportedExtensions = ["caf", "wav", "aiff", "aif"]
+    private nonisolated static let supportedExtensions = ["caf", "wav", "aiff", "aif", "mp3", "m4a", "aac"]
 
     private nonisolated static var soundsDirectory: URL {
         FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]

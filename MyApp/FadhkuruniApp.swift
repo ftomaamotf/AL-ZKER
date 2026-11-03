@@ -4,6 +4,11 @@ import SwiftUI
 struct FadhkuruniApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
+    init() {
+        // ضمان تفعيل مستلم الإشعارات فور إقلاع التطبيق لعرض البانر وتشغيل الصوت حتى والتطبيق مفتوح
+        _ = NotificationManager.shared
+    }
+
     var body: some Scene {
         WindowGroup {
             DrivingModePreviewGate { DrivingModeGate { GestureWelcomeGate { ContentView() } } }
