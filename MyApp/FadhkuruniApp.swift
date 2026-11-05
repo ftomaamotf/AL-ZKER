@@ -43,6 +43,8 @@ struct FadhkuruniApp: App {
                         DhikrSummaryNotificationScheduler.shared.refresh()
                         PrayerTimesManager.shared.refresh()
                         Task { await WatchPurchaseAccess.shared.refresh() }
+                    } else if phase == .background {
+                        DhikrSummaryNotificationScheduler.shared.refreshDailySummaryReminder()
                     }
                 }
         }

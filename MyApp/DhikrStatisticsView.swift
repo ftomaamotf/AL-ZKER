@@ -425,7 +425,7 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
     }
 
     func refresh() {
-        let summariesEnabled = true
+        let summariesEnabled = UserDefaults.standard.object(forKey: "fadhkuruni_daily_summary_enabled") as? Bool ?? true
         guard summariesEnabled || !DhikrCustomReminder.loadAll().isEmpty else {
             cancel()
             return
@@ -433,6 +433,7 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         refreshPrayerReminders()
         refreshCustomReminder()
+        refreshDailySummaryReminder()
         guard CLLocationManager.locationServicesEnabled() else { return }
         switch locationManager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse: locationManager.requestLocation()
@@ -500,7 +501,8 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last, location.horizontalAccuracy >= 0 else { return }
-        schedule(at: location.coordinate)
+        PrayerTimesManager.shared.refresh()
+        refreshDailySummaryReminder()
     }
 
     // iOS requires this delegate method whenever requestLocation() is used.
@@ -509,39 +511,75 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
         // Prayer reminders use the user-selected times and remain scheduled without location.
     }
 
-    private func schedule(at coordinate: CLLocationCoordinate2D) {
+    func cancelDailySummaryReminder() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers + removedPeriodIdentifiers)
+    }
+
+    func currentMaghribTime() -> (hour: Int, minute: Int) {
+        // 1. أولوية أولى: من مواقيت الصلاة المحسوبة لموقع المستخدم في PrayerTimesManager
+        if let maghrib = PrayerTimesManager.shared.times.first(where: { $0.id == "maghrib" }) {
+            let comps = Calendar.current.dateComponents([.hour, .minute], from: maghrib.date)
+            if let h = comps.hour, let m = comps.minute {
+                return (h, m)
+            }
+        }
+
+        // 2. أولوية ثانية: من الدقائق المخزنة في إعدادات التطبيق (المحسوبة والمعدلة يدوياً لمواقيت البرنامج)
+        let totalMinutes = UserDefaults.standard.object(forKey: "fadhkuruni_prayer_maghrib_minutes") as? Int ?? 1080
+        let clamped = (totalMinutes + 1_440) % 1_440
+        return (clamped / 60, clamped % 60)
+    }
+
+    func maghribFormattedTimeString() -> String {
+        let (h, m) = currentMaghribTime()
+        var components = DateComponents()
+        components.hour = h
+        components.minute = m
+        if let date = Calendar.current.date(from: components) {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "ar_SA")
+            formatter.dateFormat = "h:mm a"
+            return formatter.string(from: date)
+        }
+        return String(format: "%02d:%02d", h, m)
+    }
+
+    func refreshDailySummaryReminder() {
         let center = UNUserNotificationCenter.current()
+        let identifier = identifiers[0]
         center.removePendingNotificationRequests(withIdentifiers: identifiers + removedPeriodIdentifiers)
+
+        let isEnabled = UserDefaults.standard.object(forKey: "fadhkuruni_daily_summary_enabled") as? Bool ?? true
+        guard isEnabled else { return }
+
+        let (maghribHour, maghribMinute) = currentMaghribTime()
         let stats = WatchSyncService.shared.statistics
-        let azkar = WatchSyncService.shared.azkarList
-        schedule(center, id: identifiers[0], date: nextSunset(after: Date(), coordinate: coordinate), title: "ملخص اليوم", body: dailyBody(stats, azkar: azkar))
-    }
+        let todayCount = stats.totalToday()
+        let currentZekr = WatchSyncService.shared.currentZekr
+        let currentZekrCount = stats.totalToday(for: currentZekr)
 
-    private func schedule(_ center: UNUserNotificationCenter, id: String, date: Date?, title: String, body: String) {
-        guard let date else { return }
-        let content = UNMutableNotificationContent(); content.title = title; content.body = body; content.sound = .default
-        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-        center.add(UNNotificationRequest(identifier: id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)))
-    }
+        let content = UNMutableNotificationContent()
+        content.title = "ملخص الذكر اليومي (صلاة المغرب)"
 
-    private func dailyBody(_ stats: DhikrStatisticsLedger, azkar: [ZekrItem]) -> String {
-        guard !azkar.isEmpty else { return "لا توجد أذكار مسجلة اليوم." }
-        return azkar.map { item in
-            "\(item.title): \(stats.totalToday(for: item.title))"
-        }.joined(separator: "\n")
-    }
+        if todayCount > 0 {
+            content.body = "حان وقت صلاة المغرب 🕌 | مجموع تسبيحك اليوم: \(todayCount.formatted()) تسبيحة (\(currentZekr): \(currentZekrCount.formatted())). تقبّل الله طاعتكم."
+        } else {
+            content.body = "حان وقت صلاة المغرب 🕌 | تقبّل الله طاعتكم. افتح التطبيق لتفقد وردك اليومي وملخص أيام الأسبوع."
+        }
 
-    private func comparisonBody(current: Int, previous: Int, period: String, label: String) -> String {
-        guard previous > 0 else { return "عدد الأذكار \(label): \(current)." }
-        if current > previous { return "عدد الأذكار \(label): \(current)، أكثر من \(period) بـ \(current - previous)." }
-        if current < previous { return "عدد الأذكار \(label): \(current)، أقل من \(period) بـ \(previous - current)." }
-        return "عدد الأذكار \(label): \(current)، مثل \(period)."
-    }
+        content.sound = .default
+        if #available(iOS 15.0, *) {
+            content.interruptionLevel = .timeSensitive
+        }
 
-    private func nextSunset(after date: Date, coordinate: CLLocationCoordinate2D) -> Date? {
-        var candidate = SolarTime.sunset(on: date, coordinate: coordinate)
-        if candidate == nil || candidate! <= date { candidate = SolarTime.sunset(on: Calendar.current.date(byAdding: .day, value: 1, to: date) ?? date, coordinate: coordinate) }
-        return candidate
+        var components = DateComponents()
+        components.hour = maghribHour
+        components.minute = maghribMinute
+        components.second = 0
+
+        // يتكرر الإشعار يومياً في نفس توقيت صلاة المغرب المعتمد في البرنامج
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+        center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
     }
     private func schedulePrayerReminders(_ center: UNUserNotificationCenter) {
         guard UserDefaults.standard.object(forKey: "fadhkuruni_prayer_reminders_enabled") as? Bool ?? true else { return }
@@ -590,26 +628,4 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
             center.add(UNNotificationRequest(identifier: "fadhkuruni.prayer.\(name)", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)))
         }
     }
-}
-
-private enum SolarTime {
-    static func sunset(on date: Date, coordinate: CLLocationCoordinate2D) -> Date? {
-        let calendar = Calendar(identifier: .gregorian)
-        let day = Double(calendar.ordinality(of: .day, in: .year, for: date) ?? 1)
-        let longitudeHour = coordinate.longitude / 15
-        let t = day + ((18 - longitudeHour) / 24)
-        let m = 0.9856 * t - 3.289
-        var l = m + 1.916 * sin(radians(m)) + 0.020 * sin(2 * radians(m)) + 282.634; l = wrap(l, 360)
-        var ra = degrees(atan(0.91764 * tan(radians(l)))); ra = wrap(ra, 360)
-        let lQuadrant = floor(l / 90) * 90, raQuadrant = floor(ra / 90) * 90; ra = (ra + lQuadrant - raQuadrant) / 15
-        let sinDec = 0.39782 * sin(radians(l)), cosDec = cos(asin(sinDec))
-        let cosH = (cos(radians(90.833)) - sinDec * sin(radians(coordinate.latitude))) / (cosDec * cos(radians(coordinate.latitude)))
-        guard (-1...1).contains(cosH) else { return nil }
-        let h = degrees(acos(cosH)) / 15
-        let ut = wrap(h + ra - 0.06571 * t - 6.622 - longitudeHour, 24)
-        return calendar.startOfDay(for: date).addingTimeInterval(ut * 3600)
-    }
-    private static func radians(_ degrees: Double) -> Double { degrees * .pi / 180 }
-    private static func degrees(_ radians: Double) -> Double { radians * 180 / .pi }
-    private static func wrap(_ value: Double, _ modulus: Double) -> Double { (value.truncatingRemainder(dividingBy: modulus) + modulus).truncatingRemainder(dividingBy: modulus) }
 }

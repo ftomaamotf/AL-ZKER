@@ -2074,6 +2074,7 @@ private struct PrayerTimeOffsetEditor: View {
         .onChange(of: minutes) { _, _ in
             PrayerTimesManager.shared.applyManualAdjustments()
             DhikrSummaryNotificationScheduler.shared.refreshPrayerReminders()
+            DhikrSummaryNotificationScheduler.shared.refreshDailySummaryReminder()
         }
     }
 }

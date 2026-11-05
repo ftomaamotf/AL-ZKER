@@ -74,6 +74,7 @@ final class PrayerTimesManager: NSObject, ObservableObject, CLLocationManagerDel
             }
         }
         DhikrSummaryNotificationScheduler.shared.refreshPrayerReminders()
+        DhikrSummaryNotificationScheduler.shared.refreshDailySummaryReminder()
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {

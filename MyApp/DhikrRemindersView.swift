@@ -11,6 +11,7 @@ struct DhikrCustomReminder: Identifiable, Codable, Hashable {
 /// Notification controls intentionally live separately from statistics.
 struct DhikrRemindersView: View {
     @ObservedObject private var sync = WatchSyncService.shared
+    @AppStorage("fadhkuruni_daily_summary_enabled") private var dailySummaryEnabled = true
     @State private var customReminders = DhikrCustomReminder.loadAll()
     @State private var editor: DhikrCustomReminder?
     @State private var showStartFromTodayConfirmation = false
@@ -40,6 +41,29 @@ struct DhikrRemindersView: View {
                     }
                     .padding(.vertical, 3)
                 }
+
+                // إشعار ملخص الذكر اليومي عند صلاة المغرب
+                HStack(spacing: 12) {
+                    Image(systemName: "sunset.fill")
+                        .foregroundStyle(.orange)
+                        .frame(width: 34, height: 34)
+                        .background(.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("إشعار ملخص الذكر اليومي")
+                            .font(.body.weight(.medium))
+                        Text("يصلك يومياً عند صلاة المغرب (\(maghribDisplayTime))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $dailySummaryEnabled)
+                        .labelsHidden()
+                        .tint(.green)
+                        .onChange(of: dailySummaryEnabled) { _, _ in
+                            DhikrSummaryNotificationScheduler.shared.refreshDailySummaryReminder()
+                        }
+                }
+                .padding(.vertical, 3)
 
                 Button("بدء الإحصاءات من اليوم", role: .destructive) {
                     showStartFromTodayConfirmation = true
@@ -134,6 +158,10 @@ struct DhikrRemindersView: View {
             period: "البارحة",
             label: "اليوم"
         )
+    }
+
+    private var maghribDisplayTime: String {
+        DhikrSummaryNotificationScheduler.shared.maghribFormattedTimeString()
     }
 
     private func comparison(current: Int, previous: Int, period: String, label: String) -> String {
