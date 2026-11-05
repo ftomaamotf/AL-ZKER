@@ -44,7 +44,8 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
                 }
             })
         }
-        try? session.updateApplicationContext(urgentPayload)
+        // Application context replaces its predecessor; retain the counter ledger too.
+        try? session.updateApplicationContext(makeSnapshot())
         for delay in [0.6, 1.4, 2.5, 4.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, self.isDrivingLocked == value else { return }
@@ -130,7 +131,8 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         } else {
             queueClockCoverPreference(payload)
         }
-        try? session.updateApplicationContext(payload)
+        // Keep the last counter snapshot available while the peer is suspended.
+        try? session.updateApplicationContext(makeSnapshot())
     }
 
     private func queueClockCoverPreference(_ payload: [String: Any]) {
@@ -164,8 +166,54 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         UserDefaults.standard.set(data, forKey: "watchClockPhotoData")
         UserDefaults.standard.set(max(Date().timeIntervalSince1970, watchClockPhotoTime.nextUp), forKey: "watchClockPhotoTime")
         UserDefaults.standard.set(deviceOrigin, forKey: "watchClockPhotoOrigin")
+        sendWatchClockPhotoFile()
         sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
     }
+    private func sendWatchClockPhotoFile() {
+        guard WCSession.isSupported(), let data = watchClockPhotoData,
+              watchClockPhotoTime > 0 else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        let metadata: [String: Any] = [
+            "kind": "watchClockPhoto",
+            "watchClockPhotoTime": watchClockPhotoTime,
+            "watchClockPhotoOrigin": watchClockPhotoOrigin
+        ]
+        guard !session.outstandingFileTransfers.contains(where: {
+            $0.file.metadata?["kind"] as? String == "watchClockPhoto"
+                && $0.file.metadata?["watchClockPhotoTime"] as? Double == watchClockPhotoTime
+                && $0.file.metadata?["watchClockPhotoOrigin"] as? String == watchClockPhotoOrigin
+        }) else { return }
+        do {
+            let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("WatchPhotoTransfers", isDirectory: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let url = directory.appendingPathComponent(UUID().uuidString).appendingPathExtension("jpg")
+            try data.write(to: url, options: .atomic)
+            session.transferFile(url, metadata: metadata)
+        } catch {
+            print("Watch photo file preparation failed: \(error.localizedDescription)")
+        }
+    }
+
+    public func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        guard var payload = file.metadata,
+              payload["kind"] as? String == "watchClockPhoto" else { return }
+        // Read before returning: WatchConnectivity owns the temporary received URL.
+        do {
+            payload["watchClockPhotoData"] = try Data(contentsOf: file.fileURL)
+            DispatchQueue.main.async { self.applyWatchClockPhoto(payload) }
+        } catch {
+            print("Watch photo file read failed: \(error.localizedDescription)")
+        }
+    }
+
+    public func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {
+        guard fileTransfer.file.metadata?["kind"] as? String == "watchClockPhoto" else { return }
+        if let error { print("Watch photo transfer failed: \(error.localizedDescription)") }
+        try? FileManager.default.removeItem(at: fileTransfer.file.fileURL)
+    }
+
     private func applyWatchClockPhoto(_ payload: [String: Any]) {
         guard let data = payload["watchClockPhotoData"] as? Data,
               let time = payload["watchClockPhotoTime"] as? Double, time.isFinite, time > 0,
@@ -182,6 +230,18 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     @Published public var target: Int = 33
     @Published public var azkarList: [ZekrItem] = []
     @Published public private(set) var statistics = DhikrStatisticsLedger()
+
+    private func traceSync(_ text: String) {
+        #if DEBUG
+        let line = "\(Date().timeIntervalSince1970) \(text)\n"
+        let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("connectivity-debug.log")
+        var log = (try? Data(contentsOf: url)) ?? Data()
+        if log.count > 24000 { log = Data() }
+        log.append(Data(line.utf8))
+        try? log.write(to: url, options: .atomic)
+        #endif
+    }
 
     private var badgeObservation: AnyCancellable?
 
@@ -233,11 +293,8 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         payload["watchClockCover"] = showsWatchClockCover
         payload["watchClockCoverTime"] = clockCoverTime
         payload["watchClockCoverOrigin"] = clockCoverOrigin
-        if let watchClockPhotoData {
-            payload["watchClockPhotoData"] = watchClockPhotoData
-            payload["watchClockPhotoTime"] = watchClockPhotoTime
-            payload["watchClockPhotoOrigin"] = watchClockPhotoOrigin
-        }
+        // Photos travel as files, never in counter messages or their replies.
+        // A saved photo plus the ledger can exceed WatchConnectivity's payload budget.
         payload["drivingLocked"] = isDrivingLocked
         return payload
     }
@@ -576,6 +633,38 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         requestLatestStateFromPeer()
     }
 
+    private var foregroundSyncRequestID: UUID?
+
+    /// A visible phone also initiates a full exchange. This recovers watch taps
+    /// when watchOS reports reachability but its outgoing message is rejected.
+    public func refreshVisibleCounter() {
+        traceSync("SYNC Phone foreground exchange state=\(WCSession.default.activationState.rawValue) reachable=\(WCSession.default.isReachable)")
+        guard WCSession.isSupported(), foregroundSyncRequestID == nil else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isReachable else { return }
+        let requestID = UUID()
+        foregroundSyncRequestID = requestID
+        let finish: ([String: Any]?) -> Void = { [weak self] snapshot in
+            DispatchQueue.main.async {
+                guard let self, self.foregroundSyncRequestID == requestID else { return }
+                self.foregroundSyncRequestID = nil
+                if let snapshot { self.handleIncomingPayload(snapshot) }
+            }
+        }
+        var exchange = makeSnapshot()
+        exchange["action"] = "exchangeSync"
+        session.sendMessage(exchange, replyHandler: { finish($0) }, errorHandler: { error in
+            print("Phone foreground sync failed: \(error.localizedDescription)")
+            finish(nil)
+        })
+        // Permit recovery if WatchConnectivity never completes a callback.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+            if self?.foregroundSyncRequestID == requestID {
+                self?.foregroundSyncRequestID = nil
+            }
+        }
+    }
+
     private func requestLatestStateFromPeer() {
         let session = WCSession.default
         guard session.activationState == .activated else { return }
@@ -658,6 +747,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
 
     /// Synchronize state changes to paired watch or phone
     public func sendSyncPayload(count: Int, zekr: String, target: Int) {
+        traceSync("SYNC Phone local send count=\(count) target=\(target) state=\(WCSession.default.activationState.rawValue) reachable=\(WCSession.default.isReachable)")
         guard count >= 0, (1...10000).contains(target), azkarList.contains(where: { $0.title == zekr }) else { return }
         if self.currentCount != count { self.currentCount = count }
         if self.currentZekr != zekr { self.currentZekr = zekr }
@@ -687,7 +777,8 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             // Reconcile with the peer's ledger after every foreground counter update.
             session.sendMessage(payload, replyHandler: { [weak self] snapshot in
                 self?.handleIncomingPayload(snapshot)
-            }, errorHandler: { [weak self] _ in
+            }, errorHandler: { [weak self] error in
+                self?.traceSync("SYNC Phone direct send failed: \(error)")
                 self?.sendReliableBackgroundPayload(payload)
             })
         } else {
@@ -716,15 +807,18 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             }
         }
 
+        traceSync("SYNC Phone queued count=\(payload["count"] as? Int ?? -1)")
         session.transferUserInfo(payload)
     }
 
     // MARK: - WCSessionDelegate
     public func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        traceSync("SYNC Phone activated state=\(activationState.rawValue) error=\(String(describing:error))")
         guard activationState == .activated else { return }
         DispatchQueue.main.async {
             self.refreshSynchronization()
             self.sendClockCoverPreference()
+            self.sendWatchClockPhotoFile()
         }
     }
 
@@ -749,11 +843,22 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     }
 
     public func session(_ session: WCSession, didReceiveMessage message: [String : Any], replyHandler: @escaping ([String : Any]) -> Void) {
+        if message["action"] as? String == "exchangeSync" {
+            DispatchQueue.main.async {
+                self.applyIncomingPayload(message)
+                replyHandler(self.makeSnapshot())
+            }
+            return
+        }
+        if message["action"] as? String == "requestSync" {
+            DispatchQueue.main.async {
+                replyHandler(self.makeSnapshot())
+            }
+            return
+        }
         handleIncomingPayload(message)
         DispatchQueue.main.async {
-            if message["action"] as? String == "requestSync" {
-                replyHandler(self.makeSnapshot())
-            } else if message["action"] as? String == "checkDrivingStatus" {
+            if message["action"] as? String == "checkDrivingStatus" {
                 replyHandler([
                     "drivingLocked": self.isDrivingLocked,
                     "timestamp": Date().timeIntervalSince1970
@@ -790,6 +895,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     }
 
     private func applyIncomingPayload(_ payload: [String: Any]) {
+        traceSync("SYNC Phone receive action=\(payload["action"] as? String ?? "state") count=\(payload["count"] as? Int ?? -1) ledgerBytes=\((payload["ledgerV2"] as? Data)?.count ?? 0)")
         applyMinusPreference(payload)
         applyResetPreference(payload)
         applyClockCoverPreference(payload)
