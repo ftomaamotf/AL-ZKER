@@ -32,7 +32,14 @@ final class PrayerTimesManager: NSObject, ObservableObject, CLLocationManagerDel
             let coord = CLLocationCoordinate2D(latitude: savedLat, longitude: savedLon)
             lastCoordinate = coord
             times = PrayerTimeCalculator.times(for: Date(), coordinate: coord)
-            saveCalculatedPrayerMinutes(from: times)
+            let calendar = Calendar.current
+            for prayer in times {
+                let components = calendar.dateComponents([.hour, .minute], from: prayer.date)
+                if let hour = components.hour, let minute = components.minute {
+                    let totalMinutes = hour * 60 + minute
+                    UserDefaults.standard.set(totalMinutes, forKey: "fadhkuruni_prayer_\(prayer.id)_minutes")
+                }
+            }
         }
     }
 

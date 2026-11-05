@@ -501,7 +501,6 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last, location.horizontalAccuracy >= 0 else { return }
-        PrayerTimesManager.shared.refresh()
         refreshDailySummaryReminder()
     }
 
@@ -516,15 +515,7 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
     }
 
     func currentMaghribTime() -> (hour: Int, minute: Int) {
-        // 1. أولوية أولى: من مواقيت الصلاة المحسوبة لموقع المستخدم في PrayerTimesManager
-        if let maghrib = PrayerTimesManager.shared.times.first(where: { $0.id == "maghrib" }) {
-            let comps = Calendar.current.dateComponents([.hour, .minute], from: maghrib.date)
-            if let h = comps.hour, let m = comps.minute {
-                return (h, m)
-            }
-        }
-
-        // 2. أولوية ثانية: من الدقائق المخزنة في إعدادات التطبيق (المحسوبة والمعدلة يدوياً لمواقيت البرنامج)
+        // الدقائق المعتمدة في البرنامج لصلاة المغرب (المحسوبة والمعدلة يدوياً في إعدادات التطبيق)
         let totalMinutes = UserDefaults.standard.object(forKey: "fadhkuruni_prayer_maghrib_minutes") as? Int ?? 1080
         let clamped = (totalMinutes + 1_440) % 1_440
         return (clamped / 60, clamped % 60)
