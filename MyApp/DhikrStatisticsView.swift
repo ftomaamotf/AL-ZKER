@@ -411,18 +411,13 @@ struct DhikrStatisticsView: View {
 }
 
 @MainActor
-final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelegate {
+final class DhikrSummaryNotificationScheduler {
     static let shared = DhikrSummaryNotificationScheduler()
-    private let locationManager = CLLocationManager()
     private let identifiers = ["fadhkuruni.summary.daily"]
     private let removedPeriodIdentifiers = ["fadhkuruni.summary.week", "fadhkuruni.summary.month", "fadhkuruni.summary.year"]
     private let prayerIdentifiers = ["fajr", "dhuhr", "asr", "maghrib", "isha"].map { "fadhkuruni.prayer.\($0)" }
 
-    private override init() {
-        super.init()
-        locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
-    }
+    private init() {}
 
     func refresh() {
         let summariesEnabled = UserDefaults.standard.object(forKey: "fadhkuruni_daily_summary_enabled") as? Bool ?? true
@@ -434,12 +429,6 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
         refreshPrayerReminders()
         refreshCustomReminder()
         refreshDailySummaryReminder()
-        guard CLLocationManager.locationServicesEnabled() else { return }
-        switch locationManager.authorizationStatus {
-        case .authorizedAlways, .authorizedWhenInUse: locationManager.requestLocation()
-        case .notDetermined: locationManager.requestWhenInUseAuthorization()
-        default: break
-        }
     }
 
     func cancel() {
@@ -448,6 +437,10 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
 
     func cancelPrayerReminders() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: prayerIdentifiers)
+    }
+
+    func cancelDailySummaryReminder() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers + removedPeriodIdentifiers)
     }
 
     func refreshPrayerReminders() {
@@ -495,83 +488,6 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
         return Array(Set(current + known))
     }
 
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse { manager.requestLocation() }
-    }
-
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last, location.horizontalAccuracy >= 0 else { return }
-        refreshDailySummaryReminder()
-    }
-
-    // iOS requires this delegate method whenever requestLocation() is used.
-    // A denied permission or a temporary location failure must not close the app.
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        // Prayer reminders use the user-selected times and remain scheduled without location.
-    }
-
-    func cancelDailySummaryReminder() {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers + removedPeriodIdentifiers)
-    }
-
-    func currentMaghribTime() -> (hour: Int, minute: Int) {
-        // الدقائق المعتمدة في البرنامج لصلاة المغرب (المحسوبة والمعدلة يدوياً في إعدادات التطبيق)
-        let totalMinutes = UserDefaults.standard.object(forKey: "fadhkuruni_prayer_maghrib_minutes") as? Int ?? 1080
-        let clamped = (totalMinutes + 1_440) % 1_440
-        return (clamped / 60, clamped % 60)
-    }
-
-    func maghribFormattedTimeString() -> String {
-        let (h, m) = currentMaghribTime()
-        var components = DateComponents()
-        components.hour = h
-        components.minute = m
-        if let date = Calendar.current.date(from: components) {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "ar_SA")
-            formatter.dateFormat = "h:mm a"
-            return formatter.string(from: date)
-        }
-        return String(format: "%02d:%02d", h, m)
-    }
-
-    func refreshDailySummaryReminder() {
-        let center = UNUserNotificationCenter.current()
-        let identifier = identifiers[0]
-        center.removePendingNotificationRequests(withIdentifiers: identifiers + removedPeriodIdentifiers)
-
-        let isEnabled = UserDefaults.standard.object(forKey: "fadhkuruni_daily_summary_enabled") as? Bool ?? true
-        guard isEnabled else { return }
-
-        let (maghribHour, maghribMinute) = currentMaghribTime()
-        let stats = WatchSyncService.shared.statistics
-        let todayCount = stats.totalToday()
-        let currentZekr = WatchSyncService.shared.currentZekr
-        let currentZekrCount = stats.totalToday(for: currentZekr)
-
-        let content = UNMutableNotificationContent()
-        content.title = "ملخص الذكر اليومي (صلاة المغرب)"
-
-        if todayCount > 0 {
-            content.body = "حان وقت صلاة المغرب 🕌 | مجموع تسبيحك اليوم: \(todayCount.formatted()) تسبيحة (\(currentZekr): \(currentZekrCount.formatted())). تقبّل الله طاعتكم."
-        } else {
-            content.body = "حان وقت صلاة المغرب 🕌 | تقبّل الله طاعتكم. افتح التطبيق لتفقد وردك اليومي وملخص أيام الأسبوع."
-        }
-
-        content.sound = .default
-        if #available(iOS 15.0, *) {
-            content.interruptionLevel = .timeSensitive
-        }
-
-        var components = DateComponents()
-        components.hour = maghribHour
-        components.minute = maghribMinute
-        components.second = 0
-
-        // يتكرر الإشعار يومياً في نفس توقيت صلاة المغرب المعتمد في البرنامج
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
-        center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
-    }
     private func schedulePrayerReminders(_ center: UNUserNotificationCenter) {
         guard UserDefaults.standard.object(forKey: "fadhkuruni_prayer_reminders_enabled") as? Bool ?? true else { return }
         center.removePendingNotificationRequests(withIdentifiers: prayerIdentifiers)
@@ -618,5 +534,60 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
             components.second = 0
             center.add(UNNotificationRequest(identifier: "fadhkuruni.prayer.\(name)", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)))
         }
+    }
+
+    func currentMaghribTime() -> (hour: Int, minute: Int) {
+        // الدقائق المعتمدة في البرنامج لصلاة المغرب (المحسوبة والمعدلة يدوياً في إعدادات التطبيق)
+        let totalMinutes = UserDefaults.standard.object(forKey: "fadhkuruni_prayer_maghrib_minutes") as? Int ?? 1080
+        let clamped = (totalMinutes + 1_440) % 1_440
+        return (clamped / 60, clamped % 60)
+    }
+
+    func maghribFormattedTimeString() -> String {
+        let (h, m) = currentMaghribTime()
+        let now = Date()
+        let targetDate = Calendar.current.date(bySettingHour: h, minute: m, second: 0, of: now) ?? now
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ar_SA")
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: targetDate)
+    }
+
+    func refreshDailySummaryReminder() {
+        let center = UNUserNotificationCenter.current()
+        let identifier = identifiers[0]
+        center.removePendingNotificationRequests(withIdentifiers: identifiers + removedPeriodIdentifiers)
+
+        let isEnabled = UserDefaults.standard.object(forKey: "fadhkuruni_daily_summary_enabled") as? Bool ?? true
+        guard isEnabled else { return }
+
+        let (maghribHour, maghribMinute) = currentMaghribTime()
+        let stats = WatchSyncService.shared.statistics
+        let todayCount = stats.totalToday()
+        let currentZekr = WatchSyncService.shared.currentZekr
+        let currentZekrCount = stats.totalToday(for: currentZekr)
+
+        let content = UNMutableNotificationContent()
+        content.title = "ملخص الذكر اليومي (صلاة المغرب)"
+
+        if todayCount > 0 {
+            content.body = "حان وقت صلاة المغرب 🕌 | مجموع تسبيحك اليوم: \(todayCount.formatted()) تسبيحة (\(currentZekr): \(currentZekrCount.formatted())). تقبّل الله طاعتكم."
+        } else {
+            content.body = "حان وقت صلاة المغرب 🕌 | تقبّل الله طاعتكم. افتح التطبيق لتفقد وردك اليومي وملخص أيام الأسبوع."
+        }
+
+        content.sound = .default
+        if #available(iOS 15.0, *) {
+            content.interruptionLevel = .timeSensitive
+        }
+
+        var components = DateComponents()
+        components.hour = maghribHour
+        components.minute = maghribMinute
+        components.second = 0
+
+        // يتكرر الإشعار يومياً في نفس توقيت صلاة المغرب المعتمد في البرنامج
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+        center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
     }
 }
