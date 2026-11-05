@@ -29,6 +29,7 @@ struct BuiltInAdhan: Identifiable, Hashable, Sendable {
     let fullFileName: String
 
     nonisolated static let all: [BuiltInAdhan] = [
+        .init(id: "long-tone", title: "رنة طويلة", subtitle: "رنة تنبيه للصلاة (13 ثانية)", fileName: "prayer-long-tone.caf", fullFileName: "prayer-long-tone-full.m4a"),
         .init(id: "makkah-classic", title: "مكة — الحرم المكي", subtitle: "أذان الحرم المكي الشريف (كامل 3:17 د)", fileName: "adhan-makkah-classic.caf", fullFileName: "adhan-makkah-classic-full.m4a"),
         .init(id: "madinah", title: "المدينة — المسجد النبوي", subtitle: "أذان المسجد النبوي — الشيخ السريحي (كامل 4:26 د)", fileName: "adhan-madinah.caf", fullFileName: "adhan-madinah-full.m4a"),
         .init(id: "egypt-abdulbasit", title: "مصر — الشيخ عبد الباسط", subtitle: "أذان تاريخي بصوت الشيخ عبد الباسط (كامل 3:42 د)", fileName: "adhan-egypt-abdulbasit.caf", fullFileName: "adhan-egypt-abdulbasit-full.m4a"),
@@ -44,7 +45,7 @@ struct BuiltInAdhan: Identifiable, Hashable, Sendable {
     private static let preferencePrefix = "fadhkuruni_prayer_builtin_adhan_"
 
     static func selected(for prayerID: String) -> BuiltInAdhan {
-        let selectedID = UserDefaults.standard.string(forKey: preferencePrefix + prayerID) ?? "makkah-classic"
+        let selectedID = UserDefaults.standard.string(forKey: preferencePrefix + prayerID) ?? "long-tone"
         return all.first(where: { $0.id == selectedID }) ?? all[0]
     }
 
@@ -59,6 +60,20 @@ struct BuiltInAdhan: Identifiable, Hashable, Sendable {
 
 enum PrayerAlertPreference {
     private static let prefix = "fadhkuruni_prayer_alert_mode_"
+
+    /// Apply the requested tone once; subsequent user changes remain editable.
+    static func configureLongToneForAllPrayersIfNeeded() {
+        let defaults = UserDefaults.standard
+        let migrationKey = "fadhkuruni_long_prayer_tone_configured_v1"
+        guard !defaults.bool(forKey: migrationKey),
+              let tone = BuiltInAdhan.all.first(where: { $0.id == "long-tone" }) else { return }
+        for prayerID in ["fajr", "dhuhr", "asr", "maghrib", "isha"] {
+            BuiltInAdhan.select(tone, for: prayerID)
+            set(.builtIn, for: prayerID)
+        }
+        defaults.set(true, forKey: "fadhkuruni_prayer_reminders_enabled")
+        defaults.set(true, forKey: migrationKey)
+    }
 
     static func mode(for prayerID: String) -> PrayerAlertMode {
         guard let value = UserDefaults.standard.string(forKey: prefix + prayerID),
