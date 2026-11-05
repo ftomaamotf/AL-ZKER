@@ -496,7 +496,11 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         let payload = makeSnapshot()
 
         if session.isReachable {
-            session.sendMessage(payload, replyHandler: { _ in }, errorHandler: { [weak self] _ in
+            // The reply is a complete peer snapshot, not merely an acknowledgement.
+            // Merge it so simultaneous taps on both devices converge immediately.
+            session.sendMessage(payload, replyHandler: { [weak self] snapshot in
+                self?.handleIncomingPayload(snapshot)
+            }, errorHandler: { [weak self] _ in
                 self?.sendReliableAzkarPayload(payload)
             })
         } else {
@@ -680,7 +684,10 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         let payload = makeSnapshot()
 
         if session.isReachable {
-            session.sendMessage(payload, replyHandler: { _ in }, errorHandler: { [weak self] _ in
+            // Reconcile with the peer's ledger after every foreground counter update.
+            session.sendMessage(payload, replyHandler: { [weak self] snapshot in
+                self?.handleIncomingPayload(snapshot)
+            }, errorHandler: { [weak self] _ in
                 self?.sendReliableBackgroundPayload(payload)
             })
         } else {
@@ -715,12 +722,18 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     // MARK: - WCSessionDelegate
     public func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         guard activationState == .activated else { return }
-        DispatchQueue.main.async { self.refreshSynchronization() }
+        DispatchQueue.main.async {
+            self.refreshSynchronization()
+            self.sendClockCoverPreference()
+        }
     }
 
     public func sessionReachabilityDidChange(_ session: WCSession) {
         DispatchQueue.main.async {
-            if session.isReachable { self.refreshSynchronization() }
+            if session.isReachable {
+                self.refreshSynchronization()
+                self.sendClockCoverPreference()
+            }
         }
     }
 
@@ -753,7 +766,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
                     "timestamp": Date().timeIntervalSince1970
                 ])
             } else {
-                replyHandler(["received": true])
+                // Returning the merged snapshot lets the sender repair any counter
+                // difference caused by concurrent offline taps in the same exchange.
+                replyHandler(self.makeSnapshot())
             }
         }
     }

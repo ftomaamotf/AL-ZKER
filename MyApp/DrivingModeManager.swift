@@ -85,7 +85,7 @@ final class DrivingModeManager: NSObject, ObservableObject, CLLocationManagerDel
     private func startWatchdog() {
         watchdogTimer?.invalidate()
         watchdogTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self = self, self.isDriving else { return }
                 let elapsed = Date().timeIntervalSince(self.lastHighSpeedTime)
                 if elapsed >= 5.0 {

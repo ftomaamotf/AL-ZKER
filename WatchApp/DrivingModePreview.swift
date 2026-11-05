@@ -8,9 +8,7 @@ struct DrivingModePreviewGate<Content: View>: View {
     @ViewBuilder var content: () -> Content
     var body: some View {
         #if DEBUG && targetEnvironment(simulator)
-        if ProcessInfo.processInfo.arguments.contains("--preview-watch-welcome") {
-            GestureWelcomeView(onContinue: {})
-        } else if ProcessInfo.processInfo.arguments.contains("--preview-driving-mode") {
+        if ProcessInfo.processInfo.arguments.contains("--preview-driving-mode") {
             DrivingModePreview()
         } else { content() }
         #else

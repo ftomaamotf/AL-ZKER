@@ -110,8 +110,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     private func applyClockCoverPreference(_ payload: [String: Any]) {
         guard let value = payload["watchClockCover"] as? Bool,
               let time = payload["watchClockCoverTime"] as? Double, time.isFinite, time > 0,
-              let origin = payload["watchClockCoverOrigin"] as? String,
-              time > clockCoverTime || (time == clockCoverTime && origin > clockCoverOrigin) else { return }
+              let origin = payload["watchClockCoverOrigin"] as? String else { return }
+        // This preference is controlled by the iPhone. Do not reject a current
+        // phone command because the Watch retained an older future timestamp.
         showsWatchClockCover = value
         UserDefaults.standard.set(value, forKey: "watchClockCover")
         UserDefaults.standard.set(time, forKey: "watchClockCoverTime")
@@ -441,7 +442,11 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         let payload = makeSnapshot()
 
         if session.isReachable {
-            session.sendMessage(payload, replyHandler: { _ in }) { [weak self] error in
+            // The reply contains the phone's current ledger. Merge it immediately
+            // so concurrent phone/watch taps cannot leave a visible count gap.
+            session.sendMessage(payload, replyHandler: { [weak self] snapshot in
+                self?.handleIncomingPayload(snapshot)
+            }) { [weak self] error in
                 print("Watch -> Phone azkar sendMessage error: \(error.localizedDescription), falling back to transferUserInfo")
                 self?.sendReliableAzkarPayload(payload)
             }
@@ -637,7 +642,10 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         let payload = makeSnapshot()
 
         if session.isReachable {
-            session.sendMessage(payload, replyHandler: { _ in }, errorHandler: { [weak self] _ in
+            // Reconcile with the phone after every foreground counter update.
+            session.sendMessage(payload, replyHandler: { [weak self] snapshot in
+                self?.handleIncomingPayload(snapshot)
+            }, errorHandler: { [weak self] _ in
                 self?.sendReliableBackgroundPayload(payload)
             })
         } else {
@@ -695,7 +703,8 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             } else if message["action"] as? String == "checkDrivingStatus" {
                 replyHandler(["drivingLocked": self.isDrivingLocked])
             } else {
-                replyHandler(["received": true])
+                // Return the full merged state, not a bare acknowledgement.
+                replyHandler(self.makeSnapshot())
             }
         }
     }

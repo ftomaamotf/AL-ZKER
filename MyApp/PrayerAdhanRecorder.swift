@@ -21,14 +21,14 @@ enum PrayerAlertMode: String, CaseIterable {
     }
 }
 
-struct BuiltInAdhan: Identifiable, Hashable {
+struct BuiltInAdhan: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
     let subtitle: String
     let fileName: String
     let fullFileName: String
 
-    static let all: [BuiltInAdhan] = [
+    nonisolated static let all: [BuiltInAdhan] = [
         .init(id: "makkah-classic", title: "مكة — الحرم المكي", subtitle: "أذان الحرم المكي الشريف (كامل 3:17 د)", fileName: "adhan-makkah-classic.caf", fullFileName: "adhan-makkah-classic-full.m4a"),
         .init(id: "madinah", title: "المدينة — المسجد النبوي", subtitle: "أذان المسجد النبوي — الشيخ السريحي (كامل 4:26 د)", fileName: "adhan-madinah.caf", fullFileName: "adhan-madinah-full.m4a"),
         .init(id: "egypt-abdulbasit", title: "مصر — الشيخ عبد الباسط", subtitle: "أذان تاريخي بصوت الشيخ عبد الباسط (كامل 3:42 د)", fileName: "adhan-egypt-abdulbasit.caf", fullFileName: "adhan-egypt-abdulbasit-full.m4a"),
@@ -72,7 +72,7 @@ enum PrayerAlertPreference {
 }
 
 @MainActor
-final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVAudioRecorderDelegate, @preconcurrency AVAudioPlayerDelegate {
+final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVAudioRecorderDelegate, AVAudioPlayerDelegate {
     static let shared = PrayerAdhanRecorder()
 
     @Published private(set) var recordingPrayerID: String?
@@ -95,7 +95,7 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
     func requestAndStartRecording(for prayerID: String) {
         message = nil
         AVAudioApplication.requestRecordPermission { [weak self] granted in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard granted else {
                     self?.message = "اسمح بالميكروفون من إعدادات الآيفون لتسجيل الأذان."
                     return
@@ -272,7 +272,7 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
         let request = UNNotificationRequest(identifier: "fadhkuruni.test.prayer.\(prayerID)", content: content, trigger: trigger)
         center.add(request) { [weak self] error in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 if error == nil {
                     self?.message = "تمت جدولة إشعار التجربة بنجاح! سيصلك التنبيه خلال 5 ثوانٍ لسماع الصوت."
                 } else {

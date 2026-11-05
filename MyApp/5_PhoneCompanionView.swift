@@ -671,41 +671,50 @@ public struct PhoneCompanionView: View {
     
     private var watchClockCoverButton: some View {
         ZStack {
-            Circle()
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: sync.showsWatchClockCover
-                            ? [Color(red: 0.10, green: 0.88, blue: 0.64), Color(red: 0.02, green: 0.45, blue: 0.31)]
-                            : [Color.mint.opacity(0.36), Color.green.opacity(0.13)],
+                            ? [Color(red: 0.05, green: 0.66, blue: 0.47), Color(red: 0.02, green: 0.25, blue: 0.23)]
+                            : [Color.white.opacity(0.82), Color.mint.opacity(0.24), Color.green.opacity(0.10)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
-                .frame(width: 42, height: 42)
+                .frame(width: 44, height: 44)
                 .overlay {
-                    Circle()
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .strokeBorder(
                             LinearGradient(
-                                colors: [.white.opacity(0.82), Color.mint.opacity(0.35), .white.opacity(0.16)],
+                                colors: [.white.opacity(0.9), Color.mint.opacity(0.38), .white.opacity(0.16)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             ),
-                            lineWidth: 1
+                            lineWidth: 1.15
                         )
                 }
-                .shadow(color: Color.mint.opacity(sync.showsWatchClockCover ? 0.34 : 0.16), radius: 8, y: 4)
+                .shadow(color: Color.mint.opacity(sync.showsWatchClockCover ? 0.38 : 0.15), radius: 10, y: 5)
+
             Circle()
-                .fill(.white.opacity(sync.showsWatchClockCover ? 0.17 : 0.27))
-                .frame(width: 29, height: 29)
-                .blur(radius: 0.4)
-            Image(systemName: "sparkle")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(.white.opacity(0.9))
-                .offset(x: -11, y: -11)
-            Image(systemName: "diamond.fill")
+                .fill(.ultraThinMaterial)
+                .frame(width: 31, height: 31)
+                .overlay {
+                    Circle().strokeBorder(.white.opacity(0.38), lineWidth: 0.7)
+                }
+
+            Image(systemName: sync.showsWatchClockCover ? "eye.slash.fill" : "eye.fill")
                 .font(.system(size: 17, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(sync.showsWatchClockCover ? .white : Color.green)
-                .shadow(color: .white.opacity(0.5), radius: 2)
+                .shadow(color: sync.showsWatchClockCover ? .black.opacity(0.22) : .white.opacity(0.6), radius: 2, y: 1)
+
+            Image(systemName: sync.showsWatchClockCover ? "checkmark" : "clock.fill")
+                .font(.system(size: 7, weight: .heavy))
+                .foregroundStyle(sync.showsWatchClockCover ? Color.green : .white)
+                .frame(width: 14, height: 14)
+                .background(sync.showsWatchClockCover ? Color.white : Color.green, in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.85), lineWidth: 0.7))
+                .offset(x: 14, y: 14)
         }
         .scaleEffect(isPressingToolbarCover ? 0.84 : 1.0)
         .offset(y: isPressingToolbarCover ? 2.0 : 0)

@@ -96,7 +96,6 @@ final class DhikrSummaryNotificationScheduler: NSObject, CLLocationManagerDelega
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         refreshPrayerReminders()
         refreshCustomReminder()
-        guard summariesEnabled else { return }
         guard CLLocationManager.locationServicesEnabled() else { return }
         switch locationManager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse: locationManager.requestLocation()
