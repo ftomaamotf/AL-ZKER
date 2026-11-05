@@ -20,6 +20,27 @@ struct DhikrRemindersView: View {
         Form {
             Section("ملخصات الذكر") {
                 summaryRow(title: sync.currentZekr, symbol: "sun.max.fill", detail: selectedDhikrComparison)
+                
+                NavigationLink {
+                    DhikrStatisticsView()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "calendar.badge.clock")
+                            .foregroundStyle(.green)
+                            .frame(width: 34, height: 34)
+                            .background(.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("ملخص أيام الأسبوع والمقارنات")
+                                .font(.body.weight(.medium))
+                            Text("معرفة تسبيح كل يوم ومقارنته باليوم السابق واللاحق")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 3)
+                }
+
                 Button("بدء الإحصاءات من اليوم", role: .destructive) {
                     showStartFromTodayConfirmation = true
                 }

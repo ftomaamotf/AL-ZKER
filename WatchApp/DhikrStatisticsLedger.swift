@@ -89,6 +89,20 @@ public struct DhikrStatisticsLedger: Codable, Equatable {
     public func totalYesterday() -> Int { total(in: Self.interval(.day, offset: -1)) }
     public func totalToday(for title: String) -> Int { total(for: title, in: Self.interval(.day, offset: 0)) }
     public func totalYesterday(for title: String) -> Int { total(for: title, in: Self.interval(.day, offset: -1)) }
+    public func total(dayOffset: Int) -> Int { total(in: Self.interval(.day, offset: dayOffset)) }
+    public func total(dayOffset: Int, for title: String) -> Int { total(for: title, in: Self.interval(.day, offset: dayOffset)) }
+    public func total(on date: Date) -> Int {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: date)
+        let interval = calendar.dateInterval(of: .day, for: start) ?? DateInterval(start: start, duration: 86_400)
+        return total(in: interval)
+    }
+    public func total(on date: Date, for title: String) -> Int {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: date)
+        let interval = calendar.dateInterval(of: .day, for: start) ?? DateInterval(start: start, duration: 86_400)
+        return total(for: title, in: interval)
+    }
     public func totalThisWeek() -> Int { total(in: Self.interval(.weekOfYear, offset: 0)) }
     public func totalLastWeek() -> Int { total(in: Self.interval(.weekOfYear, offset: -1)) }
     public func totalThisMonth() -> Int { total(in: Self.interval(.month, offset: 0)) }

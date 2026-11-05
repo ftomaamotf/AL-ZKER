@@ -2,33 +2,131 @@ import SwiftUI
 import UserNotifications
 import CoreLocation
 
+enum StatisticsScope: String, CaseIterable, Identifiable {
+    case allAzkar = "كافة الأذكار"
+    case currentZekr = "الذكر الحالي"
+    var id: String { rawValue }
+}
+
+struct DayComparisonInfo: Identifiable {
+    let id: String
+    let date: Date
+    let dayName: String
+    let dateFormatted: String
+    let isToday: Bool
+    let count: Int
+    let previousDayName: String
+    let previousDayCount: Int
+    let nextDayName: String?
+    let nextDayCount: Int?
+
+    var diffFromPrevious: Int { count - previousDayCount }
+
+    var comparisonToPreviousText: String {
+        guard previousDayCount > 0 else {
+            return count > 0 ? "اليوم السابق (\(previousDayName)): 0" : "لم يُسجل تسبيح"
+        }
+        if count > previousDayCount {
+            return "أكثر من \(previousDayName) بـ \((count - previousDayCount).formatted())"
+        } else if count < previousDayCount {
+            return "أقل من \(previousDayName) بـ \((previousDayCount - count).formatted())"
+        } else {
+            return "مثل \(previousDayName) تماماً (\(count.formatted()))"
+        }
+    }
+
+    var comparisonToNextText: String {
+        guard let nextDayName, let nextDayCount else {
+            return isToday ? "اليوم الحالي قيد التسبيح (مستمر)" : "اليوم الأحدث"
+        }
+        guard nextDayCount > 0 else {
+            return count > 0 ? "أكثر من \(nextDayName) (لم يُسجل فيها)" : "لم يُسجل فيها"
+        }
+        if count > nextDayCount {
+            return "أكثر من \(nextDayName) بـ \((count - nextDayCount).formatted())"
+        } else if count < nextDayCount {
+            return "أقل من \(nextDayName) بـ \((nextDayCount - count).formatted())"
+        } else {
+            return "مثل \(nextDayName) تماماً (\(count.formatted()))"
+        }
+    }
+}
+
 struct DhikrStatisticsView: View {
     @ObservedObject private var sync = WatchSyncService.shared
     @AppStorage("fadhkuruni_daily_statistics_goal") private var dailyGoal = 100
+    @State private var selectedScope: StatisticsScope = .allAzkar
     @State private var showClearStatisticsConfirmation = false
     @State private var statisticsDeletionMessage: String?
 
     var body: some View {
         List {
+            // اختيار نطاق الإحصاءات: كافة الأذكار أو الذكر الحالي
             Section {
-                VStack(spacing: 10) {
-                    Text("تسبيح اليوم")
+                Picker("نطاق الإحصاءات", selection: $selectedScope) {
+                    ForEach(StatisticsScope.allCases) { scope in
+                        Text(scope == .currentZekr ? "\(scope.rawValue) (\(sync.currentZekr))" : scope.rawValue)
+                            .tag(scope)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+
+            // 1. بطاقة نظرة عامة لليوم
+            Section {
+                VStack(spacing: 12) {
+                    Text(todayHeaderTitle)
                         .font(.subheadline).foregroundStyle(.secondary)
-                    Text("\(sync.statistics.totalToday())")
-                        .font(.system(size: 54, weight: .bold, design: .rounded)).foregroundStyle(.green)
-                    Text(todayComparison)
-                        .font(.subheadline).foregroundStyle(.secondary)
-                    ProgressView(value: min(Double(sync.statistics.totalToday()), Double(dailyGoal)), total: Double(max(1, dailyGoal)))
+                    
+                    Text("\(todayCount)")
+                        .font(.system(size: 54, weight: .bold, design: .rounded))
+                        .foregroundStyle(.green)
+                    
+                    Text(todayComparisonText)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    
+                    ProgressView(value: min(Double(todayCount), Double(dailyGoal)), total: Double(max(1, dailyGoal)))
                         .tint(.green)
-                    Text("هدف اليوم: \(dailyGoal)").font(.caption).foregroundStyle(.secondary)
-                    Text("المجموع من كل الأذكار على الآيفون والساعة")
-                        .font(.caption2).foregroundStyle(.secondary)
+                    
+                    HStack {
+                        Text("هدف اليوم: \(dailyGoal)").font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(Int(min(1.0, Double(todayCount) / Double(max(1, dailyGoal))) * 100))٪ تم إنجازه")
+                            .font(.caption.bold())
+                            .foregroundStyle(.green)
+                    }
+
+                    Divider().padding(.vertical, 4)
+
+                    // 3 بطاقات ملخص سريع
+                    HStack(spacing: 8) {
+                        statBadge(title: "مجموع الأسبوع", value: "\(weeklyTotalCount)", icon: "chart.bar.fill", tint: .green)
+                        statBadge(title: "معدل اليوم", value: "\(dailyAverageCount)", icon: "flame.fill", tint: .orange)
+                        statBadge(title: "أنشط الأيام", value: bestDayName, icon: "crown.fill", tint: .yellow)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
             }
             .listRowBackground(Color.green.opacity(0.08))
 
+            // 2. المخطط البياني لأيام الأسبوع (7 أيام)
+            Section(header: Text("مخطط أيام الأسبوع (الـ 7 أيام الماضية)")) {
+                weeklyBarChart
+                    .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+            }
+
+            // 3. ملخص أيام الأسبوع ومقارنة اليوم السابق واليوم التالي
+            Section(header: Text("ملخص أيام الأسبوع والمقارنات")) {
+                ForEach(daysOfWeekData) { day in
+                    dayRowView(day: day)
+                }
+            }
+
+            // 4. حذف الإحصاءات
             Section {
                 Button("حذف الإحصاءات", role: .destructive) {
                     showClearStatisticsConfirmation = true
@@ -60,8 +158,247 @@ struct DhikrStatisticsView: View {
         }
     }
 
-    private var todayComparison: String {
-        comparison(current: sync.statistics.totalToday(), previous: sync.statistics.totalYesterday(), unit: "الأمس")
+    private var todayHeaderTitle: String {
+        selectedScope == .allAzkar ? "تسبيح اليوم (كافة الأذكار)" : "تسبيح اليوم (\(sync.currentZekr))"
+    }
+
+    private var todayCount: Int {
+        selectedScope == .allAzkar ? sync.statistics.totalToday() : sync.statistics.totalToday(for: sync.currentZekr)
+    }
+
+    private var yesterdayCount: Int {
+        selectedScope == .allAzkar ? sync.statistics.totalYesterday() : sync.statistics.totalYesterday(for: sync.currentZekr)
+    }
+
+    private var todayComparisonText: String {
+        comparison(current: todayCount, previous: yesterdayCount, unit: "الأمس")
+    }
+
+    private var weeklyTotalCount: Int {
+        daysOfWeekData.map(\.count).reduce(0, +)
+    }
+
+    private var dailyAverageCount: Int {
+        let total = weeklyTotalCount
+        return total > 0 ? total / 7 : 0
+    }
+
+    private var bestDayName: String {
+        guard let best = daysOfWeekData.max(by: { $0.count < $1.count }), best.count > 0 else {
+            return "—"
+        }
+        return "\(best.dayName) (\(best.count))"
+    }
+
+    private var weeklyBarChart: some View {
+        VStack(spacing: 8) {
+            HStack(alignment: .bottom, spacing: 6) {
+                ForEach(daysOfWeekData.reversed()) { day in
+                    VStack(spacing: 4) {
+                        Text("\(day.count)")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(day.isToday ? Color.green : .secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.65)
+
+                        let maxCount = max(1, daysOfWeekData.map(\.count).max() ?? 1)
+                        let barHeight = max(6.0, CGFloat(day.count) / CGFloat(maxCount) * 65.0)
+
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(
+                                day.isToday
+                                ? LinearGradient(colors: [.green, .mint], startPoint: .top, endPoint: .bottom)
+                                : LinearGradient(colors: [Color.green.opacity(day.count > 0 ? 0.45 : 0.15), Color.green.opacity(day.count > 0 ? 0.25 : 0.08)], startPoint: .top, endPoint: .bottom)
+                            )
+                            .frame(height: barHeight)
+
+                        Text(shortDayName(day.dayName))
+                            .font(.system(size: 10, weight: day.isToday ? .bold : .regular))
+                            .foregroundStyle(day.isToday ? Color.green : .secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: 100)
+            .padding(.top, 4)
+        }
+        .padding(10)
+        .background(Color(UIColor.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func dayRowView(day: DayComparisonInfo) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // سطر العنوان والعدد
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(day.dayName)
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(day.isToday ? Color.green : .primary)
+                        
+                        if day.isToday {
+                            Text("اليوم")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.green, in: Capsule())
+                        }
+                    }
+                    Text(day.dateFormatted)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("\(day.count)")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(day.count > 0 ? Color.green : .secondary)
+                    Text("تسبيحة")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            // شريط التقدم لليوم مقارنة بأعلى يوم في الأسبوع
+            let maxCount = max(1, daysOfWeekData.map(\.count).max() ?? 1)
+            ProgressView(value: Double(day.count), total: Double(maxCount))
+                .tint(day.isToday ? .green : .mint)
+
+            // بطاقة المقارنات (اليوم السابق واليوم التالي)
+            VStack(spacing: 5) {
+                // 1. مقارنة باليوم الذي قبله
+                HStack(spacing: 6) {
+                    Image(systemName: diffIcon(diff: day.diffFromPrevious, count: day.count, prev: day.previousDayCount))
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(diffColor(diff: day.diffFromPrevious, count: day.count, prev: day.previousDayCount))
+                    
+                    Text(day.comparisonToPreviousText)
+                        .font(.caption)
+                        .foregroundStyle(day.count != day.previousDayCount ? .primary : .secondary)
+                    
+                    Spacer()
+                }
+
+                // 2. مقارنة باليوم الذي يليه
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.uturn.left.circle")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.teal)
+                    
+                    Text(day.comparisonToNextText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    
+                    Spacer()
+                }
+            }
+            .padding(8)
+            .background(Color(UIColor.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func diffIcon(diff: Int, count: Int, prev: Int) -> String {
+        guard prev > 0 else { return count > 0 ? "star.fill" : "circle" }
+        if diff > 0 { return "arrow.up.right.circle.fill" }
+        if diff < 0 { return "arrow.down.right.circle.fill" }
+        return "equal.circle.fill"
+    }
+
+    private func diffColor(diff: Int, count: Int, prev: Int) -> Color {
+        guard prev > 0 else { return count > 0 ? .green : .secondary }
+        if diff > 0 { return .green }
+        if diff < 0 { return .orange }
+        return .secondary
+    }
+
+    private func statBadge(title: String, value: String, icon: String, tint: Color) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(tint)
+            Text(value)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text(title)
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .background(Color(UIColor.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func shortDayName(_ full: String) -> String {
+        let trimmed = full.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("ال") {
+            return String(trimmed.dropFirst(2))
+        }
+        return trimmed
+    }
+
+    private var daysOfWeekData: [DayComparisonInfo] {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date()
+        var list: [DayComparisonInfo] = []
+
+        let dayFormatter = DateFormatter()
+        dayFormatter.locale = Locale(identifier: "ar_SA")
+        dayFormatter.dateFormat = "EEEE"
+
+        let shortDateFormatter = DateFormatter()
+        shortDateFormatter.locale = Locale(identifier: "ar_SA")
+        shortDateFormatter.dateFormat = "d MMMM"
+
+        let idFormatter = DateFormatter()
+        idFormatter.locale = Locale(identifier: "en_US_POSIX")
+        idFormatter.dateFormat = "yyyy-MM-dd"
+
+        for offset in 0...6 {
+            let dayOffset = -offset
+            guard let date = calendar.date(byAdding: .day, value: dayOffset, to: now) else { continue }
+            let count = selectedScope == .allAzkar
+                ? sync.statistics.total(dayOffset: dayOffset)
+                : sync.statistics.total(dayOffset: dayOffset, for: sync.currentZekr)
+
+            let prevOffset = dayOffset - 1
+            let prevDate = calendar.date(byAdding: .day, value: prevOffset, to: now) ?? date
+            let prevCount = selectedScope == .allAzkar
+                ? sync.statistics.total(dayOffset: prevOffset)
+                : sync.statistics.total(dayOffset: prevOffset, for: sync.currentZekr)
+            let prevDayName = dayFormatter.string(from: prevDate)
+
+            var nextDayName: String? = nil
+            var nextCount: Int? = nil
+            if dayOffset < 0 {
+                let nextOffset = dayOffset + 1
+                let nextDate = calendar.date(byAdding: .day, value: nextOffset, to: now) ?? date
+                nextDayName = dayFormatter.string(from: nextDate)
+                nextCount = selectedScope == .allAzkar
+                    ? sync.statistics.total(dayOffset: nextOffset)
+                    : sync.statistics.total(dayOffset: nextOffset, for: sync.currentZekr)
+            }
+
+            let info = DayComparisonInfo(
+                id: idFormatter.string(from: date),
+                date: date,
+                dayName: dayFormatter.string(from: date),
+                dateFormatted: shortDateFormatter.string(from: date),
+                isToday: dayOffset == 0,
+                count: count,
+                previousDayName: prevDayName,
+                previousDayCount: prevCount,
+                nextDayName: nextDayName,
+                nextDayCount: nextCount
+            )
+            list.append(info)
+        }
+
+        return list
     }
 
     private func comparison(current: Int, previous: Int, unit: String) -> String {
