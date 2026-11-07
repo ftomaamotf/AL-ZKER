@@ -967,31 +967,26 @@ public struct PhoneCompanionView: View {
 
     // MARK: - كبسولة ملخص الذكر اليومي داخل بطاقة العداد
     private var dhikrSummaryPill: some View {
-        NavigationLink {
-            DhikrStatisticsView()
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "chart.bar.xaxis")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.green)
+        HStack(spacing: 6) {
+            Image(systemName: "chart.bar.xaxis")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.green)
 
-                Text(dhikrComparisonSummary)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(isButtonsLocked ? Color.black.opacity(0.7) : .primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+            Text(dhikrComparisonSummary)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(isButtonsLocked ? Color.black.opacity(0.7) : .primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary.opacity(0.6))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(Capsule().strokeBorder(Color.green.opacity(0.25), lineWidth: 0.8))
+            Image(systemName: "chevron.left")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary.opacity(0.6))
         }
-        .buttonStyle(.plain)
-        .allowsHitTesting(!isButtonsLocked)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.green.opacity(0.25), lineWidth: 0.8))
+        .allowsHitTesting(false)
         .accessibilityLabel("ملخص الذكر: \(dhikrComparisonSummary)")
     }
 
