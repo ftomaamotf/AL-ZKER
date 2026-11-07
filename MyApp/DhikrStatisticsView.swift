@@ -55,21 +55,54 @@ struct DayComparisonInfo: Identifiable {
 struct DhikrStatisticsView: View {
     @ObservedObject private var sync = WatchSyncService.shared
     @AppStorage("fadhkuruni_daily_statistics_goal") private var dailyGoal = 100
-    @State private var selectedScope: StatisticsScope = .allAzkar
+    @State private var selectedDhikrTitle = ""
     @State private var showClearStatisticsConfirmation = false
     @State private var statisticsDeletionMessage: String?
 
     var body: some View {
         List {
-            // اختيار نطاق الإحصاءات: كافة الأذكار أو الذكر الحالي
             Section {
-                Picker("نطاق الإحصاءات", selection: $selectedScope) {
-                    ForEach(StatisticsScope.allCases) { scope in
-                        Text(scope == .currentZekr ? "\(scope.rawValue) (\(sync.currentZekr))" : scope.rawValue)
-                            .tag(scope)
+                if recordedDhikrTitles.isEmpty {
+                    ContentUnavailableView("لا يوجد ذكر مسجل بعد", systemImage: "sparkles", description: Text("ابدأ بالتسبيح وسيظهر الذكر هنا مع ملخصه."))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("الأذكار التي سبّحت بها").font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text("\(recordedDhikrTitles.count) أذكار")
+                                .font(.caption.weight(.bold)).foregroundStyle(.green)
+                                .padding(.horizontal, 9).padding(.vertical, 5)
+                                .background(Color.green.opacity(0.12), in: Capsule())
+                        }
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            LazyHStack(spacing: 9) {
+                                ForEach(recordedDhikrTitles, id: \.self) { title in
+                                    let isSelected = title == activeDhikrTitle
+                                    Button {
+                                        selectedDhikrTitle = title
+                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    } label: {
+                                        VStack(alignment: .trailing, spacing: 3) {
+                                            Text(title).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.75)
+                                            Text("\(sync.statistics.totalToday(for: title).formatted()) اليوم").font(.caption2.monospacedDigit())
+                                        }
+                                        .foregroundStyle(isSelected ? Color.white : Color.primary)
+                                        .padding(.horizontal, 13).padding(.vertical, 9)
+                                        .background {
+                                            Capsule().fill(isSelected ? AnyShapeStyle(LinearGradient(colors: [.green, .mint], startPoint: .topLeading, endPoint: .bottomTrailing)) : AnyShapeStyle(.ultraThinMaterial))
+                                        }
+                                        .overlay { Capsule().strokeBorder(isSelected ? Color.clear : Color.green.opacity(0.16), lineWidth: 0.8) }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("عرض ملخص \(title)")
+                                }
+                            }
+                            .padding(.horizontal, 2)
+                        }
                     }
                 }
-                .pickerStyle(.segmented)
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
@@ -128,28 +161,31 @@ struct DhikrStatisticsView: View {
 
             // 4. حذف الإحصاءات
             Section {
-                Button("حذف الإحصاءات", role: .destructive) {
+                Button("حذف إحصاءات الذكر المختار", role: .destructive) {
                     showClearStatisticsConfirmation = true
                 }
+                .disabled(activeDhikrTitle.isEmpty)
             } footer: {
-                Text("يحذف أرقام الإحصاءات فقط من الآيفون والساعة، ولا يحذف الأذكار أو الأهداف أو العداد الحالي.")
+                Text("يحذف إحصاءات \(activeDhikrTitle.isEmpty ? "الذكر المختار" : activeDhikrTitle) فقط من الآيفون والساعة، ولا يحذف بقية الأذكار أو الأهداف أو العداد الحالي.")
             }
         }
         .navigationTitle("إحصاءات الذكر")
+        .onAppear { selectFirstRecordedDhikrIfNeeded() }
+        .onChange(of: recordedDhikrTitles) { _, _ in selectFirstRecordedDhikrIfNeeded() }
         .alert("حذف الإحصاءات؟", isPresented: $showClearStatisticsConfirmation) {
             Button("إلغاء", role: .cancel) {}
             Button("متابعة", role: .destructive) {
                 Task {
                     switch await BiometricStatisticsDeletionAuthorizer.authorize() {
                     case .success:
-                        sync.clearStatistics()
+                        sync.clearStatistics(for: activeDhikrTitle)
                     case .failure(let failure):
                         statisticsDeletionMessage = failure.message
                     }
                 }
             }
         } message: {
-            Text("سيُطلب تأكيد بصمة الوجه أو بصمة الإصبع قبل الحذف. سيُحذف سجل الإحصاءات من الآيفون والساعة، وسيبدأ الاحتساب من الصفر.")
+            Text("سيُطلب تأكيد بصمة الوجه أو بصمة الإصبع قبل الحذف. سيُحذف سجل \(activeDhikrTitle) فقط من الآيفون والساعة، وسيبدأ احتساب هذا الذكر من الصفر.")
         }
         .alert("حذف الإحصاءات", isPresented: Binding(get: { statisticsDeletionMessage != nil }, set: { if !$0 { statisticsDeletionMessage = nil } })) {
             Button("حسناً", role: .cancel) {}
@@ -159,15 +195,29 @@ struct DhikrStatisticsView: View {
     }
 
     private var todayHeaderTitle: String {
-        selectedScope == .allAzkar ? "تسبيح اليوم (كافة الأذكار)" : "تسبيح اليوم (\(sync.currentZekr))"
+        activeDhikrTitle.isEmpty ? "تسبيح اليوم" : "تسبيح اليوم (\(activeDhikrTitle))"
     }
 
     private var todayCount: Int {
-        selectedScope == .allAzkar ? sync.statistics.totalToday() : sync.statistics.totalToday(for: sync.currentZekr)
+        activeDhikrTitle.isEmpty ? 0 : sync.statistics.totalToday(for: activeDhikrTitle)
     }
 
     private var yesterdayCount: Int {
-        selectedScope == .allAzkar ? sync.statistics.totalYesterday() : sync.statistics.totalYesterday(for: sync.currentZekr)
+        activeDhikrTitle.isEmpty ? 0 : sync.statistics.totalYesterday(for: activeDhikrTitle)
+    }
+
+    private var recordedDhikrTitles: [String] {
+        sync.statistics.recordedDhikrTitles(from: sync.azkarList.map(\.title))
+    }
+
+    private var activeDhikrTitle: String {
+        recordedDhikrTitles.contains(selectedDhikrTitle) ? selectedDhikrTitle : (recordedDhikrTitles.first ?? "")
+    }
+
+    private func selectFirstRecordedDhikrIfNeeded() {
+        if !recordedDhikrTitles.contains(selectedDhikrTitle) {
+            selectedDhikrTitle = recordedDhikrTitles.first ?? ""
+        }
     }
 
     private var todayComparisonText: String {
@@ -361,15 +411,15 @@ struct DhikrStatisticsView: View {
         for offset in 0...6 {
             let dayOffset = -offset
             guard let date = calendar.date(byAdding: .day, value: dayOffset, to: now) else { continue }
-            let count = selectedScope == .allAzkar
-                ? sync.statistics.total(dayOffset: dayOffset)
-                : sync.statistics.total(dayOffset: dayOffset, for: sync.currentZekr)
+            let count = activeDhikrTitle.isEmpty
+                ? 0
+                : sync.statistics.total(dayOffset: dayOffset, for: activeDhikrTitle)
 
             let prevOffset = dayOffset - 1
             let prevDate = calendar.date(byAdding: .day, value: prevOffset, to: now) ?? date
-            let prevCount = selectedScope == .allAzkar
-                ? sync.statistics.total(dayOffset: prevOffset)
-                : sync.statistics.total(dayOffset: prevOffset, for: sync.currentZekr)
+            let prevCount = activeDhikrTitle.isEmpty
+                ? 0
+                : sync.statistics.total(dayOffset: prevOffset, for: activeDhikrTitle)
             let prevDayName = dayFormatter.string(from: prevDate)
 
             var nextDayName: String? = nil
@@ -378,9 +428,9 @@ struct DhikrStatisticsView: View {
                 let nextOffset = dayOffset + 1
                 let nextDate = calendar.date(byAdding: .day, value: nextOffset, to: now) ?? date
                 nextDayName = dayFormatter.string(from: nextDate)
-                nextCount = selectedScope == .allAzkar
-                    ? sync.statistics.total(dayOffset: nextOffset)
-                    : sync.statistics.total(dayOffset: nextOffset, for: sync.currentZekr)
+                nextCount = activeDhikrTitle.isEmpty
+                    ? 0
+                    : sync.statistics.total(dayOffset: nextOffset, for: activeDhikrTitle)
             }
 
             let info = DayComparisonInfo(
@@ -449,8 +499,15 @@ final class DhikrSummaryNotificationScheduler {
             return
         }
         PrayerAdhanRecorder.ensureBuiltInSoundsInLibraryDirectory()
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
-        schedulePrayerReminders(UNUserNotificationCenter.current())
+        let center = UNUserNotificationCenter.current()
+        // Wait for the current notification settings before adding requests. On
+        // a first launch, adding them before the sound authorization settled
+        // could leave the old/default sound attached to a repeating request.
+        center.requestAuthorization(options: [.alert, .sound, .timeSensitive]) { [weak self] _, _ in
+            DispatchQueue.main.async {
+                self?.schedulePrayerReminders(center)
+            }
+        }
     }
 
     func refreshCustomReminder() {
@@ -536,8 +593,24 @@ final class DhikrSummaryNotificationScheduler {
         }
     }
 
+    func currentIshaTime() -> (hour: Int, minute: Int) {
+        // الدقائق المعتمدة في البرنامج لصلاة العشاء (المحسوبة والمعدلة يدوياً في إعدادات التطبيق)
+        let totalMinutes = UserDefaults.standard.object(forKey: "fadhkuruni_prayer_isha_minutes") as? Int ?? 1200
+        let clamped = (totalMinutes + 1_440) % 1_440
+        return (clamped / 60, clamped % 60)
+    }
+
+    func ishaFormattedTimeString() -> String {
+        let (h, m) = currentIshaTime()
+        let now = Date()
+        let targetDate = Calendar.current.date(bySettingHour: h, minute: m, second: 0, of: now) ?? now
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ar_SA")
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: targetDate)
+    }
+
     func currentMaghribTime() -> (hour: Int, minute: Int) {
-        // الدقائق المعتمدة في البرنامج لصلاة المغرب (المحسوبة والمعدلة يدوياً في إعدادات التطبيق)
         let totalMinutes = UserDefaults.standard.object(forKey: "fadhkuruni_prayer_maghrib_minutes") as? Int ?? 1080
         let clamped = (totalMinutes + 1_440) % 1_440
         return (clamped / 60, clamped % 60)
@@ -561,19 +634,19 @@ final class DhikrSummaryNotificationScheduler {
         let isEnabled = UserDefaults.standard.object(forKey: "fadhkuruni_daily_summary_enabled") as? Bool ?? true
         guard isEnabled else { return }
 
-        let (maghribHour, maghribMinute) = currentMaghribTime()
+        let (ishaHour, ishaMinute) = currentIshaTime()
         let stats = WatchSyncService.shared.statistics
         let todayCount = stats.totalToday()
         let currentZekr = WatchSyncService.shared.currentZekr
         let currentZekrCount = stats.totalToday(for: currentZekr)
 
         let content = UNMutableNotificationContent()
-        content.title = "ملخص الذكر اليومي (صلاة المغرب)"
+        content.title = "ملخص الذكر اليومي (صلاة العشاء)"
 
         if todayCount > 0 {
-            content.body = "حان وقت صلاة المغرب 🕌 | مجموع تسبيحك اليوم: \(todayCount.formatted()) تسبيحة (\(currentZekr): \(currentZekrCount.formatted())). تقبّل الله طاعتكم."
+            content.body = "حان وقت صلاة العشاء 🕌 | مجموع تسبيحك اليوم: \(todayCount.formatted()) تسبيحة (\(currentZekr): \(currentZekrCount.formatted())). تقبّل الله طاعتكم."
         } else {
-            content.body = "حان وقت صلاة المغرب 🕌 | تقبّل الله طاعتكم. افتح التطبيق لتفقد وردك اليومي وملخص أيام الأسبوع."
+            content.body = "حان وقت صلاة العشاء 🕌 | تقبّل الله طاعتكم. افتح التطبيق لتفقد وردك اليومي وملخص أيام الأسبوع."
         }
 
         content.sound = .default
@@ -582,11 +655,11 @@ final class DhikrSummaryNotificationScheduler {
         }
 
         var components = DateComponents()
-        components.hour = maghribHour
-        components.minute = maghribMinute
+        components.hour = ishaHour
+        components.minute = ishaMinute
         components.second = 0
 
-        // يتكرر الإشعار يومياً في نفس توقيت صلاة المغرب المعتمد في البرنامج
+        // يتكرر الإشعار يومياً في نفس توقيت صلاة العشاء المعتمد في البرنامج
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
         center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
     }

@@ -42,16 +42,16 @@ struct DhikrRemindersView: View {
                     .padding(.vertical, 3)
                 }
 
-                // إشعار ملخص الذكر اليومي عند صلاة المغرب
+                // إشعار ملخص الذكر اليومي عند صلاة العشاء
                 HStack(spacing: 12) {
-                    Image(systemName: "sunset.fill")
-                        .foregroundStyle(.orange)
+                    Image(systemName: "moon.stars.fill")
+                        .foregroundStyle(.indigo)
                         .frame(width: 34, height: 34)
-                        .background(.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
+                        .background(Color.indigo.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
                     VStack(alignment: .leading, spacing: 3) {
                         Text("إشعار ملخص الذكر اليومي")
                             .font(.body.weight(.medium))
-                        Text("يصلك يومياً عند صلاة المغرب (\(maghribDisplayTime))")
+                        Text("يصلك يومياً عند صلاة العشاء (\(ishaDisplayTime))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -160,8 +160,8 @@ struct DhikrRemindersView: View {
         )
     }
 
-    private var maghribDisplayTime: String {
-        DhikrSummaryNotificationScheduler.shared.maghribFormattedTimeString()
+    private var ishaDisplayTime: String {
+        DhikrSummaryNotificationScheduler.shared.ishaFormattedTimeString()
     }
 
     private func comparison(current: Int, previous: Int, period: String, label: String) -> String {
