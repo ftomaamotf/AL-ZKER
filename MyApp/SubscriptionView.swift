@@ -1,26 +1,48 @@
 import SwiftUI
 
-// Kept as an information screen for users of older versions; no subscription
-// products, trials, or purchase actions remain in this version.
 struct SubscriptionView: View {
+    @ObservedObject private var access = DhikrSummariesSubscriptionAccess.shared
+
     var body: some View {
         Form {
-            Section("مجانية بالكامل") {
-                Label("جميع ميزات الآيفون متاحة للجميع", systemImage: "checkmark.seal.fill")
+            Section("مجاني بالكامل") {
+                Label("جميع ميزات التسبيح والساعة مجانية", systemImage: "checkmark.seal.fill")
                     .foregroundStyle(.green)
-                Text("التسبيح والأذكار والأهداف والقبلة ونغمات إكمال الهدف وقفل العدّاد مجانية، دون مدة تجريبية أو اشتراك.")
+                Text("العدّاد، الأذكار، الأهداف، اتجاه القبلة، مواقيت الصلاة ونغماتها، وقفل العدّاد، وجميع ميزات Apple Watch متاحة مجاناً 100% لجميع المستخدمين دون أي رسوم.")
             }
-            Section("نسخة الساعة") {
-                Text("تُفتح نسخة Apple Watch بشراء دائم لمرة واحدة، دون تجديد تلقائي. يظهر سعر متجرك قبل تأكيد الشراء.")
-                NavigationLink("شراء نسخة الساعة أو استعادة الشراء") { WatchPurchaseView() }
+
+            Section("اشتراك ملخصات الذكر") {
+                HStack(spacing: 12) {
+                    Image(systemName: "chart.bar.xaxis")
+                        .foregroundStyle(.mint)
+                        .font(.title2)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("ملخصات الذكر وإحصاءات الأسبوع")
+                            .font(.body.weight(.medium))
+                        Text(access.statusDescription)
+                            .font(.caption)
+                            .foregroundStyle(access.isSubscribed ? .green : (access.isWithinFreeTrial ? .mint : .secondary))
+                    }
+                }
+                .padding(.vertical, 3)
+
+                Text("ميزة ملخصات الذكر متاحة مجاناً لمدة شهر كامل لجميع المستخدمين، وتتطلب بعد ذلك اشتراكاً رمزياً بسيطاً بسعر 1$ شهرياً فقط لدعم استمرار وتطوير التطبيق.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+
+                NavigationLink("تفاصيل اشتراك ملخصات الذكر") {
+                    DhikrSummariesSubscriptionView()
+                }
             }
-            Section("اشتراك من إصدار سابق") {
-                Text("إذا سبق لك الاشتراك، فإن تحديث التطبيق لا يلغي التجديد تلقائيًا. يمكنك مراجعة الاشتراك أو إلغاؤه من حساب Apple. تبقى ميزات الآيفون متاحة مجانًا بعد الإلغاء.")
-                    .font(.footnote).foregroundStyle(.secondary)
-                Link("إدارة الاشتراكات السابقة", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
+
+            Section("إدارة الاشتراك") {
+                Text("يمكنك مراجعة أو إلغاء اشتراكك في أي وقت من إعدادات حسابك في Apple. تبقى جميع ميزات التسبيح والساعة متاحة مجاناً حتى بعد الإلغاء.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Link("إدارة الاشتراكات في حساب Apple", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
             }
         }
-        .navigationTitle("ميزات الآيفون")
+        .navigationTitle("الاشتراك والأسعار")
         .environment(\.layoutDirection, .rightToLeft)
     }
 }

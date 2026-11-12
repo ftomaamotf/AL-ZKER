@@ -601,7 +601,7 @@ public struct PhoneCompanionView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     if !isButtonsLocked {
                         HStack(spacing: 8) {
-                            NavigationLink { PurchasedWatchSettingsGate { WatchGuideView() } } label: {
+                            NavigationLink { WatchGuideView() } label: {
                                 Image(systemName: "applewatch")
                                     .accessibilityLabel("فاذكروني على الساعة — صور وطريقة الاستخدام")
                             }
@@ -1883,29 +1883,11 @@ public struct PhoneCompanionView: View {
                                 .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
                             Text("إدارة الساعة").font(.title3.weight(.semibold))
                             Spacer()
-                            Label(watchAccess.isPurchased ? "مفعّل" : "مقفل",
-                                  systemImage: watchAccess.isPurchased ? "checkmark.seal.fill" : "lock.fill")
+                            Label("مجانية بالكامل", systemImage: "checkmark.seal.fill")
                                 .font(.caption).foregroundStyle(.green)
                         }
-                        if watchAccess.isChecking {
-                            ProgressView("التحقق من شراء نسخة الساعة…")
-                        } else if watchAccess.isPurchased {
-                            Text("نسخة الساعة مفعّلة. جميع خياراتها متاحة.")
-                                .font(.caption).foregroundStyle(.secondary)
-                        } else {
-                            Text("أذكارك وأهدافك على معصمك. تُفتح جميع خيارات الساعة بعد شراء نسختها.")
-                                .font(.caption).foregroundStyle(.secondary)
-                            NavigationLink { WatchPurchaseView() } label: {
-                                Text("فتح نسخة الساعة").frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent).tint(.green)
-                            Button("استعادة الشراء") { Task { await watchAccess.restore() } }
-                                .frame(maxWidth: .infinity)
-                                .disabled(watchAccess.isBusy)
-                            if let message = watchAccess.message {
-                                Text(message).font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
+                        Text("نسخة Apple Watch مجانية بالكامل للجميع، مع كامل ميزات التسبيح والمزامنة والتاج وتغطية الواجهة.")
+                            .font(.caption).foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
                     watchSettingsLink("الأذكار والأهداف", subtitle: "الذكر المعروض، الهدف وتصفير العدّاد", icon: "list.bullet") {
                         Form { watchAzkarSettings }.navigationTitle("الأذكار والأهداف")
@@ -1939,7 +1921,7 @@ public struct PhoneCompanionView: View {
                 } header: {
                     Text("تجربة الساعة")
                 } footer: {
-                    Text("جميع ميزات الآيفون مجانية. نسخة الساعة تُفتح بشراء دائم لمرة واحدة، دون تجديد تلقائي.")
+                    Text("جميع ميزات التطبيق والتسبيح وساعة Apple Watch مجانية بالكامل للجميع.")
                 }
                 Section("الحساب والمساعدة") {
                     Button {
@@ -1949,7 +1931,7 @@ public struct PhoneCompanionView: View {
                     }
                     .buttonStyle(.plain)
                     NavigationLink { SubscriptionView() } label: {
-                        settingsLabel("ميزات الآيفون", subtitle: "مجانية بالكامل، دون اشتراك", icon: "sparkles")
+                        settingsLabel("الاشتراك والأسعار", subtitle: "البرنامج مجاني، ملخصات الذكر شهر مجاناً ثم 1$", icon: "sparkles")
                     }
                     NavigationLink {
                         Form {
@@ -1996,16 +1978,9 @@ public struct PhoneCompanionView: View {
     private func watchSettingsLink<Destination: View>(_ title: String, subtitle: String? = nil,
                                                     icon: String, @ViewBuilder destination: () -> Destination) -> some View {
         NavigationLink {
-            PurchasedWatchSettingsGate { destination() }
+            destination()
         } label: {
-            HStack {
-                settingsLabel(title, subtitle: subtitle, icon: icon)
-                Spacer(minLength: 4)
-                if !watchAccess.isPurchased {
-                    Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
-                        .accessibilityLabel("يتطلب شراء نسخة الساعة")
-                }
-            }
+            settingsLabel(title, subtitle: subtitle, icon: icon)
         }
     }
 
@@ -2498,21 +2473,12 @@ private struct PrayerAlertDetailView: View {
 /// Observe the verified entitlement here as well so a pushed screen closes access
 /// immediately after a revocation or an unsuccessful entitlement refresh.
 private struct PurchasedWatchSettingsGate<Content: View>: View {
-    @ObservedObject private var access = WatchPurchaseAccess.shared
     private let content: Content
 
     init(@ViewBuilder content: () -> Content) { self.content = content() }
 
     var body: some View {
-        Group {
-            if access.isChecking {
-                ProgressView("التحقق من شراء نسخة الساعة…")
-            } else if access.isPurchased {
-                content
-            } else {
-                WatchPurchaseView()
-            }
-        }
+        content
     }
 }
 

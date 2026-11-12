@@ -29,7 +29,56 @@
     "_storefront": "USA",
     "_storeKitErrors": []
   },
-  "subscriptionGroups": [],
+  "subscriptionGroups": [
+    {
+      "id": "21474836",
+      "localizations": [
+        {
+          "description": "اشتراك ملخصات الذكر",
+          "displayName": "ملخصات الذكر",
+          "locale": "ar"
+        },
+        {
+          "description": "Dhikr Summaries Subscription",
+          "displayName": "Dhikr Summaries",
+          "locale": "en_US"
+        }
+      ],
+      "name": "Dhikr Summaries",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "1.00",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "20000001",
+          "introductoryOffer": {
+            "internalID": "30000001",
+            "paymentMode": "free",
+            "subscriptionPeriod": "P1M"
+          },
+          "localizations": [
+            {
+              "description": "ملخصات الذكر المتقدمة وإحصاءات الأسبوع",
+              "displayName": "اشتراك ملخصات الذكر",
+              "locale": "ar"
+            },
+            {
+              "description": "Dhikr summaries and weekly statistics",
+              "displayName": "Dhikr Summaries",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.abduallhajmi.fadhkuruni.summaries.subscription",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Dhikr Summaries Monthly",
+          "subscriptionGroupID": "21474836",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
   "version": {
     "major": 3,
     "minor": 0

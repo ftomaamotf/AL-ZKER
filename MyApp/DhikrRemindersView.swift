@@ -11,6 +11,7 @@ struct DhikrCustomReminder: Identifiable, Codable, Hashable {
 /// Notification controls intentionally live separately from statistics.
 struct DhikrRemindersView: View {
     @ObservedObject private var sync = WatchSyncService.shared
+    @ObservedObject private var summariesAccess = DhikrSummariesSubscriptionAccess.shared
     @AppStorage("fadhkuruni_daily_summary_enabled") private var dailySummaryEnabled = true
     @State private var customReminders = DhikrCustomReminder.loadAll()
     @State private var editor: DhikrCustomReminder?
@@ -33,9 +34,9 @@ struct DhikrRemindersView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("ملخص أيام الأسبوع والمقارنات")
                                 .font(.body.weight(.medium))
-                            Text("معرفة تسبيح كل يوم ومقارنته باليوم السابق واللاحق")
+                            Text(summariesAccess.statusDescription)
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(summariesAccess.isSubscribed ? .green : (summariesAccess.isWithinFreeTrial ? .mint : .secondary))
                         }
                         Spacer()
                     }

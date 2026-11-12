@@ -54,6 +54,7 @@ struct DayComparisonInfo: Identifiable {
 
 struct DhikrStatisticsView: View {
     @ObservedObject private var sync = WatchSyncService.shared
+    @ObservedObject private var access = DhikrSummariesSubscriptionAccess.shared
     @AppStorage("fadhkuruni_daily_statistics_goal") private var dailyGoal = 100
     @State private var selectedDhikrTitle = ""
     @State private var dhikrStripPosition: String?
@@ -61,7 +62,45 @@ struct DhikrStatisticsView: View {
     @State private var statisticsDeletionMessage: String?
 
     var body: some View {
+        Group {
+            if access.hasAccess {
+                statisticsContent
+            } else {
+                DhikrSummariesSubscriptionView()
+            }
+        }
+    }
+
+    private var statisticsContent: some View {
         List {
+            if !access.isSubscribed && access.isWithinFreeTrial {
+                Section {
+                    HStack(spacing: 12) {
+                        Image(systemName: "gift.fill")
+                            .font(.title2)
+                            .foregroundStyle(.green)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("أنت في فترة التجربة المجانية")
+                                .font(.subheadline.weight(.bold))
+                            Text("متبقي لك \(access.trialDaysRemaining) يوماً من الشهر المجاني لملخصات الذكر، بعدها بـ 1$ شهرياً.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        NavigationLink("الاشتراك") {
+                            DhikrSummariesSubscriptionView()
+                        }
+                        .font(.caption.weight(.bold))
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                    }
+                    .padding(.vertical, 3)
+                }
+            }
+
             Section {
                 if recordedDhikrTitles.isEmpty {
                     ContentUnavailableView("لا يوجد ذكر مسجل بعد", systemImage: "sparkles", description: Text("ابدأ بالتسبيح وسيظهر الذكر هنا مع ملخصه."))
@@ -208,6 +247,18 @@ struct DhikrStatisticsView: View {
             Button("حسناً", role: .cancel) {}
         } message: {
             Text(statisticsDeletionMessage ?? "")
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                NavigationLink {
+                    DhikrSummariesSubscriptionView()
+                } label: {
+                    Image(systemName: access.isSubscribed ? "checkmark.seal.fill" : "gift.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(access.isSubscribed ? .green : .mint)
+                }
+                .accessibilityLabel("اشتراك ملخصات الذكر")
+            }
         }
     }
 
