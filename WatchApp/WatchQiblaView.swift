@@ -230,7 +230,7 @@ public struct WatchQiblaView: View {
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
         .onAppear { qibla.start() }
         .onDisappear { qibla.stop() }
     }

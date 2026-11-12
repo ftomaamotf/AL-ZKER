@@ -17,17 +17,17 @@ struct WatchAddZekrView: View {
 
     var body: some View {
         Form {
-            Section("نص الذكر") {
-                TextField("اكتب الذكر", text: $title)
+            Section(L10n.isEnglish ? "Dhikr Text" : "نص الذكر") {
+                TextField(L10n.isEnglish ? "Type Dhikr" : "اكتب الذكر", text: $title)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .accessibilityLabel("نص الذكر الجديد")
+                    .accessibilityLabel(L10n.isEnglish ? "New Dhikr text" : "نص الذكر الجديد")
             }
 
-            Section("هدف التسبيح") {
+            Section(L10n.isEnglish ? "Target" : "هدف التسبيح") {
                 Stepper(value: $target, in: 1...10000) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("عدد المرات").font(.caption2).foregroundStyle(.secondary)
+                        Text(L10n.isEnglish ? "Repetitions" : "عدد المرات").font(.caption2).foregroundStyle(.secondary)
                         Text(target.formatted())
                             .font(.system(size: 18, weight: .semibold, design: .rounded))
                             .monospacedDigit()
@@ -40,10 +40,10 @@ struct WatchAddZekrView: View {
 
             if existingItem != nil {
                 Section {
-                    Text("هذا الذكر موجود بالفعل. يمكنك اختياره مع الاحتفاظ بعدّاده.")
+                    Text(L10n.isEnglish ? "This Dhikr already exists. You can select it while keeping its count." : "هذا الذكر موجود بالفعل. يمكنك اختياره مع الاحتفاظ بعدّاده.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button("اختيار الذكر الموجود") {
+                    Button(L10n.isEnglish ? "Select Existing Dhikr" : "اختيار الذكر الموجود") {
                         if let item = existingItem { selectAndClose(item) }
                     }
                     .tint(.green)
@@ -51,7 +51,7 @@ struct WatchAddZekrView: View {
             }
 
             Section {
-                Button("حفظ واختيار") {
+                Button(L10n.isEnglish ? "Save & Select" : "حفظ واختيار") {
                     // Recheck against the live synchronized list before creating anything.
                     guard canSave else { return }
                     let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -62,11 +62,11 @@ struct WatchAddZekrView: View {
                 }
                 .tint(.green)
                 .disabled(!canSave)
-                Button("إلغاء", role: .cancel) { dismiss() }
+                Button(L10n.tr("إلغاء"), role: .cancel) { dismiss() }
             }
         }
-        .navigationTitle("ذكر جديد")
-        .environment(\.layoutDirection, .rightToLeft)
+        .navigationTitle(L10n.isEnglish ? "New Dhikr" : "ذكر جديد")
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
     }
 
     private func selectAndClose(_ item: ZekrItem) {

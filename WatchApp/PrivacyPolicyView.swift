@@ -24,7 +24,7 @@ struct PrivacyPolicyView: View {
             }
             .padding()
         }
-        .navigationTitle("سياسة الخصوصية")
-        .environment(\.layoutDirection, .rightToLeft)
+        .navigationTitle(L10n.tr("سياسة الخصوصية"))
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
     }
 }

@@ -202,8 +202,8 @@ public struct PhoneQiblaView: View {
             ScrollView {
                 VStack(spacing: 22) {
                     VStack(spacing: 6) {
-                        Text("وجهتك إلى الكعبة").font(.title2.weight(.semibold))
-                        Text("أمسك الهاتف مستوياً واتبع المؤشر")
+                        Text(L10n.isEnglish ? "Your Direction to the Kaaba" : "وجهتك إلى الكعبة").font(.title2.weight(.semibold))
+                        Text(L10n.isEnglish ? "Hold phone flat and follow the indicator" : "أمسك الهاتف مستوياً واتبع المؤشر")
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
                     if qibla.isReady {
@@ -212,11 +212,11 @@ public struct PhoneQiblaView: View {
                             .frame(maxWidth: 330)
                         QiblaDirectionStatus(aligned: qibla.isAligned, needle: qibla.needleAngle)
                         HStack(spacing: 10) {
-                            metric("زاوية القبلة", value: "\(Int(qibla.qiblaBearing))°", symbol: "location.north")
-                            metric("اتجاه الهاتف", value: "\(Int(qibla.heading))°", symbol: "compass.drawing")
+                            metric(L10n.isEnglish ? "Qibla Angle" : "زاوية القبلة", value: "\(Int(qibla.qiblaBearing))°", symbol: "location.north")
+                            metric(L10n.isEnglish ? "Phone Heading" : "اتجاه الهاتف", value: "\(Int(qibla.heading))°", symbol: "compass.drawing")
                         }
                         if qibla.distanceToMeccaKm > 0 {
-                            Label("المسافة إلى مكة: \(Int(qibla.distanceToMeccaKm).formatted()) كم", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                            Label(L10n.isEnglish ? "Distance to Mecca: \(Int(qibla.distanceToMeccaKm).formatted()) km" : "المسافة إلى مكة: \(Int(qibla.distanceToMeccaKm).formatted()) كم", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
                     } else {
@@ -225,17 +225,17 @@ public struct PhoneQiblaView: View {
                                 .font(.system(size: 42, weight: .light)).foregroundStyle(.teal)
                             Text(qibla.statusMessage).multilineTextAlignment(.center)
                             Button { qibla.stop(); qibla.start() } label: {
-                                Label("إعادة المحاولة", systemImage: "arrow.clockwise")
+                                Label(L10n.isEnglish ? "Retry" : "إعادة المحاولة", systemImage: "arrow.clockwise")
                                     .padding(.horizontal, 18).padding(.vertical, 12)
                                     .fadhkuruniGlass(tint: .teal)
                             }.buttonStyle(.plain)
                             if qibla.authorizationStatus == .denied || qibla.authorizationStatus == .restricted {
-                                Link("فتح إعدادات الموقع", destination: URL(string: UIApplication.openSettingsURLString)!)
+                                Link(L10n.isEnglish ? "Open Location Settings" : "فتح إعدادات الموقع", destination: URL(string: UIApplication.openSettingsURLString)!)
                             }
                         }
                         .frame(maxWidth: .infinity).padding(.vertical, 32)
                     }
-                    Label("ابتعد عن المعادن والمغناطيس للحصول على قراءة أدق", systemImage: "info.circle")
+                    Label(L10n.isEnglish ? "Keep away from metal and magnets for better accuracy" : "ابتعد عن المعادن والمغناطيس للحصول على قراءة أدق", systemImage: "info.circle")
                         .font(.caption).foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -246,11 +246,11 @@ public struct PhoneQiblaView: View {
                 LinearGradient(colors: [Color.teal.opacity(0.09), Color.clear], startPoint: .top, endPoint: .bottom)
                     .ignoresSafeArea()
             }
-            .navigationTitle("القبلة")
+            .navigationTitle(L10n.isEnglish ? "Qibla" : "القبلة")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("إغلاق") {
+                    Button(L10n.tr("إغلاق")) {
                         dismiss()
                     }
                 }
@@ -258,7 +258,7 @@ public struct PhoneQiblaView: View {
             .onAppear { qibla.start() }
             .onDisappear { qibla.stop() }
         }
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
     }
     private func metric(_ title: String, value: String, symbol: String) -> some View {
         VStack(spacing: 8) {

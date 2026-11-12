@@ -7,6 +7,10 @@ struct PrayerTime: Identifiable, Hashable {
     let title: String
     let symbol: String
     let date: Date
+
+    var localizedTitle: String {
+        AppLanguage.shared.prayerName(id: id, arabicFallback: title)
+    }
 }
 
 @MainActor

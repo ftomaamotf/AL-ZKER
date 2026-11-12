@@ -51,7 +51,7 @@ struct DrivingModePreview: View {
                     // 1. Top Mini Badge
                     HStack(spacing: 4) {
                         Circle().fill(Color.orange).frame(width: 5, height: 5)
-                        Text("وضع الأمان مفعّل")
+                        Text(L10n.isEnglish ? "Safety Mode" : "وضع الأمان مفعّل")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.orange)
                     }
@@ -82,11 +82,11 @@ struct DrivingModePreview: View {
                             }
                             .shadow(color: .teal.opacity(0.3), radius: 6)
 
-                        Text("التطبيق متوقف")
+                        Text(L10n.isEnglish ? "App Paused" : "التطبيق متوقف")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(.white)
 
-                        Text("التسبيح متوقف أثناء القيادة")
+                        Text(L10n.isEnglish ? "Tasbih paused while driving" : "التسبيح متوقف أثناء القيادة")
                             .font(.system(size: 8.5))
                             .foregroundStyle(.white.opacity(0.75))
                             .multilineTextAlignment(.center)
@@ -99,7 +99,7 @@ struct DrivingModePreview: View {
                     VStack(spacing: 4) {
                         HStack(spacing: 4) {
                             Circle().fill(Color.green).frame(width: 5, height: 5)
-                            Text("العدد محفوظ (\(sync.currentCount))")
+                            Text(L10n.isEnglish ? "Count saved (\(sync.currentCount))" : "العدد محفوظ (\(sync.currentCount))")
                                 .font(.system(size: 9, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.9))
                         }
@@ -120,7 +120,7 @@ struct DrivingModePreview: View {
                                 HStack(spacing: 5) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 11, weight: .bold))
-                                    Text("تأكيد الوقوف")
+                                    Text(L10n.isEnglish ? "Confirm Stopped" : "تأكيد الوقوف")
                                         .font(.system(size: 11, weight: .bold))
                                 }
                                 .foregroundStyle(.black)
@@ -148,7 +148,7 @@ struct DrivingModePreview: View {
                 sync.checkDrivingStatusFromPhone()
             }
         }
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
         .preferredColorScheme(.dark)
         .task {
             guard !isPreview else { return }

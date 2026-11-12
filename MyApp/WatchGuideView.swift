@@ -33,18 +33,18 @@ struct WatchGuideView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
                 introduction
-                NavigationLink {
-                    WatchPurchaseView()
-                } label: {
-                    Label("شراء نسخة الساعة أو استعادة الشراء", systemImage: "applewatch")
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundStyle(.green)
+                    Text(L10n.isEnglish ? "Apple Watch App is 100% Free" : "نسخة الساعة مجانية بالكامل للجميع")
+                        .font(.subheadline.weight(.semibold))
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
+                .padding(.vertical, 4)
+
                 NavigationLink {
                     WatchGettingStartedView()
                 } label: {
-                    Label("كيف أفتح التطبيق على الساعة؟", systemImage: "applewatch")
+                    Label(L10n.isEnglish ? "How to open app on Apple Watch?" : "كيف أفتح التطبيق على الساعة؟", systemImage: "applewatch")
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.borderedProminent)
@@ -55,19 +55,19 @@ struct WatchGuideView: View {
                 }
 
                 counterTools
-                Label("تُحفظ الأذكار والعدادات محلياً، وتصل المزامنة بين الساعة والآيفون عند توفر الاتصال.", systemImage: "arrow.triangle.2.circlepath")
+                Label(L10n.isEnglish ? "Azkar and counters save locally and sync between Watch and iPhone when connected." : "تُحفظ الأذكار والعدادات محلياً، وتصل المزامنة بين الساعة والآيفون عند توفر الاتصال.", systemImage: "arrow.triangle.2.circlepath")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                Text("الصور توضيحية، وقد يختلف شكل الواجهة الفعلية باختلاف حجم الساعة وإصدار النظام. اضغط الصورة لتكبيرها.")
+                Text(L10n.isEnglish ? "Images are for illustration. Tap any image to enlarge." : "الصور توضيحية، وقد يختلف شكل الواجهة الفعلية باختلاف حجم الساعة وإصدار النظام. اضغط الصورة لتكبيرها.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 SupportLink()
             }
             .padding()
         }
-        .navigationTitle("فاذكروني على الساعة")
+        .navigationTitle(L10n.isEnglish ? "Fadhkuruni on Apple Watch" : "فاذكروني على الساعة")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
         .sheet(item: $selectedImage) { feature in
             NavigationStack {
                 ScrollView {
@@ -83,25 +83,25 @@ struct WatchGuideView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("إغلاق") { selectedImage = nil }
+                        Button(L10n.tr("إغلاق")) { selectedImage = nil }
                     }
                 }
             }
-            .environment(\.layoutDirection, .rightToLeft)
+            .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
         }
     }
 
     private var introduction: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("أذكارك أقرب… على معصمك", systemImage: "applewatch")
+            Label(L10n.isEnglish ? "Dhikr closer to you… on your wrist" : "أذكارك أقرب… على معصمك", systemImage: "applewatch")
                 .font(.title2.bold())
-            Label("شراء دائم لمرة واحدة", systemImage: "checkmark.seal.fill")
+            Label(L10n.isEnglish ? "100% Free for Everyone" : "مجانية بالكامل للجميع", systemImage: "checkmark.seal.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.green)
-            Text("جميع ميزات الساعة مشمولة بشراء واحد، دون اشتراك شهري أو سنوي. يظهر السعر النهائي بعملة متجرك عند الشراء.")
+            Text(L10n.isEnglish ? "All Apple Watch features are included for free with full tasbih, sync, crown options, and privacy cover." : "جميع ميزات الساعة مجانية بالكامل للجميع مع كامل ميزات التسبيح والمزامنة والتاج وتغطية الواجهة.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text("سبّح باللمس أو الإيماءة، واختر ذكرك وحدد هدفك وافتح القبلة من قائمة التاج.")
+            Text(L10n.isEnglish ? "Count by tap or gesture, select Dhikr, set targets, and view Qibla direction." : "سبّح باللمس أو الإيماءة، واختر ذكرك وحدد هدفك وافتح القبلة من قائمة التاج.")
                 .font(.body)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -184,15 +184,12 @@ private struct WatchGettingStartedView: View {
                 Label("ابدأ التسبيح، ودوّر التاج للوصول إلى الأذكار والأهداف وبقية الخيارات.", systemImage: "4.circle")
             }
             Section {
-                Text("شراء دائم لنسخة الساعة بالسعر المعروض في متجر Apple، دون تجديد تلقائي. يمكنك الشراء أو استعادته من حساب Apple نفسه.")
-                    .foregroundStyle(.green)
-                NavigationLink("شراء نسخة الساعة أو استعادة الشراء") { WatchPurchaseView() }
-                Link("شرح Apple لتثبيت التطبيقات", destination: URL(string: "https://support.apple.com/109023")!)
-                Link("شرح Apple للنقر المزدوج", destination: URL(string: "https://support.apple.com/guide/watch/apdabb7b275c/watchos")!)
+                Link(L10n.isEnglish ? "Apple guide for installing watch apps" : "شرح Apple لتثبيت التطبيقات", destination: URL(string: "https://support.apple.com/109023")!)
+                Link(L10n.isEnglish ? "Apple guide for Double Tap gesture" : "شرح Apple للنقر المزدوج", destination: URL(string: "https://support.apple.com/guide/watch/apdabb7b275c/watchos")!)
             }
         }
-        .navigationTitle("ابدأ على الساعة")
+        .navigationTitle(L10n.isEnglish ? "Start on Watch" : "ابدأ على الساعة")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
     }
 }

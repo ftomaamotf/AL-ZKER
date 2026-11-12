@@ -124,7 +124,7 @@ struct TapFeedbackSettingsView: View {
             feedback.stop()
             feedback.prepare()
         }
-        .navigationTitle("تنبيه الضغطات")
-        .environment(\.layoutDirection, .rightToLeft)
+        .navigationTitle(L10n.tr("تنبيه الضغطات"))
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
     }
 }

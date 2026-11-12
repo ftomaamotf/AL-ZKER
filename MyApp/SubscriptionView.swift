@@ -42,7 +42,7 @@ struct SubscriptionView: View {
                 Link("إدارة الاشتراكات في حساب Apple", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
             }
         }
-        .navigationTitle("الاشتراك والأسعار")
-        .environment(\.layoutDirection, .rightToLeft)
+        .navigationTitle(L10n.isEnglish ? "Subscriptions & Pricing" : "الاشتراك والأسعار")
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
     }
 }

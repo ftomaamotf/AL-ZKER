@@ -23,31 +23,62 @@ struct DayComparisonInfo: Identifiable {
     var diffFromPrevious: Int { count - previousDayCount }
 
     var comparisonToPreviousText: String {
-        guard previousDayCount > 0 else {
-            return count > 0 ? "اليوم السابق (\(previousDayName)): 0" : "لم يُسجل تسبيح"
-        }
-        if count > previousDayCount {
-            return "أكثر من \(previousDayName) بـ \((count - previousDayCount).formatted())"
-        } else if count < previousDayCount {
-            return "أقل من \(previousDayName) بـ \((previousDayCount - count).formatted())"
+        let prevName = previousDayName
+        if L10n.isEnglish {
+            guard previousDayCount > 0 else {
+                return count > 0 ? "Previous day (\(prevName)): 0" : "No tasbih recorded"
+            }
+            if count > previousDayCount {
+                return "More than \(prevName) by \((count - previousDayCount).formatted())"
+            } else if count < previousDayCount {
+                return "Less than \(prevName) by \((previousDayCount - count).formatted())"
+            } else {
+                return "Same as \(prevName) (\(count.formatted()))"
+            }
         } else {
-            return "مثل \(previousDayName) تماماً (\(count.formatted()))"
+            guard previousDayCount > 0 else {
+                return count > 0 ? "اليوم السابق (\(prevName)): 0" : "لم يُسجل تسبيح"
+            }
+            if count > previousDayCount {
+                return "أكثر من \(prevName) بـ \((count - previousDayCount).formatted())"
+            } else if count < previousDayCount {
+                return "أقل من \(prevName) بـ \((previousDayCount - count).formatted())"
+            } else {
+                return "مثل \(prevName) تماماً (\(count.formatted()))"
+            }
         }
     }
 
     var comparisonToNextText: String {
-        guard let nextDayName, let nextDayCount else {
-            return isToday ? "اليوم الحالي قيد التسبيح (مستمر)" : "اليوم الأحدث"
-        }
-        guard nextDayCount > 0 else {
-            return count > 0 ? "أكثر من \(nextDayName) (لم يُسجل فيها)" : "لم يُسجل فيها"
-        }
-        if count > nextDayCount {
-            return "أكثر من \(nextDayName) بـ \((count - nextDayCount).formatted())"
-        } else if count < nextDayCount {
-            return "أقل من \(nextDayName) بـ \((nextDayCount - count).formatted())"
+        let nxtName = nextDayName
+        if L10n.isEnglish {
+            guard let nxtName, let nextDayCount else {
+                return isToday ? "Current day in progress" : "Latest day"
+            }
+            guard nextDayCount > 0 else {
+                return count > 0 ? "More than \(nxtName) (0 recorded)" : "0 recorded"
+            }
+            if count > nextDayCount {
+                return "More than \(nxtName) by \((count - nextDayCount).formatted())"
+            } else if count < nextDayCount {
+                return "Less than \(nxtName) by \((nextDayCount - count).formatted())"
+            } else {
+                return "Same as \(nxtName) (\(count.formatted()))"
+            }
         } else {
-            return "مثل \(nextDayName) تماماً (\(count.formatted()))"
+            guard let nxtName, let nextDayCount else {
+                return isToday ? "اليوم الحالي قيد التسبيح (مستمر)" : "اليوم الأحدث"
+            }
+            guard nextDayCount > 0 else {
+                return count > 0 ? "أكثر من \(nxtName) (لم يُسجل فيها)" : "لم يُسجل فيها"
+            }
+            if count > nextDayCount {
+                return "أكثر من \(nxtName) بـ \((count - nextDayCount).formatted())"
+            } else if count < nextDayCount {
+                return "أقل من \(nxtName) بـ \((nextDayCount - count).formatted())"
+            } else {
+                return "مثل \(nxtName) تماماً (\(count.formatted()))"
+            }
         }
     }
 }
@@ -81,16 +112,16 @@ struct DhikrStatisticsView: View {
                             .foregroundStyle(.green)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("أنت في فترة التجربة المجانية")
+                            Text(L10n.isEnglish ? "Free Trial Active" : "أنت في فترة التجربة المجانية")
                                 .font(.subheadline.weight(.bold))
-                            Text("متبقي لك \(access.trialDaysRemaining) يوماً من الشهر المجاني لملخصات الذكر، بعدها بـ 1$ شهرياً.")
+                            Text(L10n.isEnglish ? "\(access.trialDaysRemaining) days remaining in your free trial of Dhikr Summaries, then $1/month." : "متبقي لك \(access.trialDaysRemaining) يوماً من الشهر المجاني لملخصات الذكر، بعدها بـ 1$ شهرياً.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
                         Spacer()
 
-                        NavigationLink("الاشتراك") {
+                        NavigationLink(L10n.isEnglish ? "Subscribe" : "الاشتراك") {
                             DhikrSummariesSubscriptionView()
                         }
                         .font(.caption.weight(.bold))
@@ -103,15 +134,15 @@ struct DhikrStatisticsView: View {
 
             Section {
                 if recordedDhikrTitles.isEmpty {
-                    ContentUnavailableView("لا يوجد ذكر مسجل بعد", systemImage: "sparkles", description: Text("ابدأ بالتسبيح وسيظهر الذكر هنا مع ملخصه."))
+                    ContentUnavailableView(L10n.isEnglish ? "No Dhikr recorded yet" : "لا يوجد ذكر مسجل بعد", systemImage: "sparkles", description: Text(L10n.isEnglish ? "Start counting and your Dhikr summary will appear here." : "ابدأ بالتسبيح وسيظهر الذكر هنا مع ملخصه."))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("الأذكار التي سبّحت بها").font(.subheadline.weight(.semibold))
+                            Text(L10n.isEnglish ? "Azkar you counted" : "الأذكار التي سبّحت بها").font(.subheadline.weight(.semibold))
                             Spacer()
-                            Text("\(recordedDhikrTitles.count) أذكار")
+                            Text("\(recordedDhikrTitles.count) \(L10n.isEnglish ? "Azkar" : "أذكار")")
                                 .font(.caption.weight(.bold)).foregroundStyle(.green)
                                 .padding(.horizontal, 9).padding(.vertical, 5)
                                 .background(Color.green.opacity(0.12), in: Capsule())
@@ -128,13 +159,13 @@ struct DhikrStatisticsView: View {
                                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                                     } label: {
                                         VStack(alignment: .trailing, spacing: 5) {
-                                            Text(title)
+                                            Text(L10n.zekrTitle(title))
                                                 .font(.caption.weight(.semibold))
                                                 .lineLimit(2)
                                                 .minimumScaleFactor(0.72)
                                                 .multilineTextAlignment(.trailing)
                                                 .frame(maxWidth: .infinity, minHeight: 32, alignment: .trailing)
-                                            Text("\(sync.statistics.totalAllTime(for: title).formatted()) إجمالي")
+                                            Text("\(sync.statistics.totalAllTime(for: title).formatted()) \(L10n.isEnglish ? "total" : "إجمالي")")
                                                 .font(.caption2.monospacedDigit())
                                                 .frame(maxWidth: .infinity, alignment: .trailing)
                                         }
@@ -147,7 +178,7 @@ struct DhikrStatisticsView: View {
                                         .overlay { Capsule().strokeBorder(isSelected ? Color.clear : Color.green.opacity(0.16), lineWidth: 0.8) }
                                     }
                                     .buttonStyle(.plain)
-                                    .accessibilityLabel("عرض ملخص \(title)")
+                                    .accessibilityLabel("\(L10n.isEnglish ? "View summary for " : "عرض ملخص ")\(title)")
                                 }
                             }
                             .scrollTargetLayout()
@@ -181,9 +212,9 @@ struct DhikrStatisticsView: View {
                         .tint(.green)
                     
                     HStack {
-                        Text("هدف اليوم: \(dailyGoal)").font(.caption).foregroundStyle(.secondary)
+                        Text("\(L10n.isEnglish ? "Daily Goal: " : "هدف اليوم: ")\(dailyGoal)").font(.caption).foregroundStyle(.secondary)
                         Spacer()
-                        Text("\(Int(min(1.0, Double(todayCount) / Double(max(1, dailyGoal))) * 100))٪ تم إنجازه")
+                        Text("\(Int(min(1.0, Double(todayCount) / Double(max(1, dailyGoal))) * 100))٪ \(L10n.isEnglish ? "completed" : "تم إنجازه")")
                             .font(.caption.bold())
                             .foregroundStyle(.green)
                     }
@@ -192,9 +223,9 @@ struct DhikrStatisticsView: View {
 
                     // 3 بطاقات ملخص سريع
                     HStack(spacing: 8) {
-                        statBadge(title: "مجموع الأسبوع", value: "\(weeklyTotalCount)", icon: "chart.bar.fill", tint: .green)
-                        statBadge(title: "معدل اليوم", value: "\(dailyAverageCount)", icon: "flame.fill", tint: .orange)
-                        statBadge(title: "أنشط الأيام", value: bestDayName, icon: "crown.fill", tint: .yellow)
+                        statBadge(title: L10n.isEnglish ? "Weekly Total" : "مجموع الأسبوع", value: "\(weeklyTotalCount)", icon: "chart.bar.fill", tint: .green)
+                        statBadge(title: L10n.isEnglish ? "Daily Average" : "معدل اليوم", value: "\(dailyAverageCount)", icon: "flame.fill", tint: .orange)
+                        statBadge(title: L10n.isEnglish ? "Most Active" : "أنشط الأيام", value: bestDayName, icon: "crown.fill", tint: .yellow)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -203,13 +234,13 @@ struct DhikrStatisticsView: View {
             .listRowBackground(Color.green.opacity(0.08))
 
             // 2. المخطط البياني لأيام الأسبوع (7 أيام)
-            Section(header: Text("مخطط أيام الأسبوع (الـ 7 أيام الماضية)")) {
+            Section(header: Text(L10n.isEnglish ? "Past 7 Days Chart" : "مخطط أيام الأسبوع (الـ 7 أيام الماضية)")) {
                 weeklyBarChart
                     .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
             }
 
             // 3. ملخص أيام الأسبوع ومقارنة اليوم السابق واليوم التالي
-            Section(header: Text("ملخص أيام الأسبوع والمقارنات")) {
+            Section(header: Text(L10n.isEnglish ? "Weekly Breakdown & Comparisons" : "ملخص أيام الأسبوع والمقارنات")) {
                 ForEach(daysOfWeekData) { day in
                     dayRowView(day: day)
                 }
@@ -217,15 +248,15 @@ struct DhikrStatisticsView: View {
 
             // 4. حذف الإحصاءات
             Section {
-                Button("حذف إحصاءات الذكر المختار", role: .destructive) {
+                Button(L10n.isEnglish ? "Clear Selected Dhikr Statistics" : "حذف إحصاءات الذكر المختار", role: .destructive) {
                     showClearStatisticsConfirmation = true
                 }
                 .disabled(activeDhikrTitle.isEmpty)
             } footer: {
-                Text("يحذف إحصاءات \(activeDhikrTitle.isEmpty ? "الذكر المختار" : activeDhikrTitle) فقط من الآيفون والساعة، ولا يحذف بقية الأذكار أو الأهداف أو العداد الحالي.")
+                Text(L10n.isEnglish ? "Deletes statistics for \(activeDhikrTitle.isEmpty ? "selected Dhikr" : activeDhikrTitle) only from iPhone and Apple Watch." : "يحذف إحصاءات \(activeDhikrTitle.isEmpty ? "الذكر المختار" : activeDhikrTitle) فقط من الآيفون والساعة، ولا يحذف بقية الأذكار أو الأهداف أو العداد الحالي.")
             }
         }
-        .navigationTitle("إحصاءات الذكر")
+        .navigationTitle(L10n.isEnglish ? "Dhikr Statistics" : "إحصائيات الذكر")
         .onAppear { selectFirstRecordedDhikrIfNeeded() }
         .onChange(of: recordedDhikrTitles) { _, _ in selectFirstRecordedDhikrIfNeeded() }
         .alert("حذف الإحصاءات؟", isPresented: $showClearStatisticsConfirmation) {
@@ -473,11 +504,11 @@ struct DhikrStatisticsView: View {
         var list: [DayComparisonInfo] = []
 
         let dayFormatter = DateFormatter()
-        dayFormatter.locale = Locale(identifier: "ar_SA")
+        dayFormatter.locale = L10n.locale
         dayFormatter.dateFormat = "EEEE"
 
         let shortDateFormatter = DateFormatter()
-        shortDateFormatter.locale = Locale(identifier: "ar_SA")
+        shortDateFormatter.locale = L10n.locale
         shortDateFormatter.dateFormat = "d MMMM"
 
         let idFormatter = DateFormatter()

@@ -20,8 +20,8 @@ struct DhikrRemindersView: View {
 
     var body: some View {
         Form {
-            Section("ملخصات الذكر") {
-                summaryRow(title: sync.currentZekr, symbol: "sun.max.fill", detail: selectedDhikrComparison)
+            Section(L10n.tr("ملخصات الذكر")) {
+                summaryRow(title: L10n.zekrTitle(sync.currentZekr), symbol: "sun.max.fill", detail: selectedDhikrComparison)
                 
                 NavigationLink {
                     DhikrStatisticsView()
@@ -32,7 +32,7 @@ struct DhikrRemindersView: View {
                             .frame(width: 34, height: 34)
                             .background(.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("ملخص أيام الأسبوع والمقارنات")
+                            Text(L10n.tr("ملخص أيام الأسبوع والمقارنات"))
                                 .font(.body.weight(.medium))
                             Text(summariesAccess.statusDescription)
                                 .font(.caption)
@@ -50,9 +50,9 @@ struct DhikrRemindersView: View {
                         .frame(width: 34, height: 34)
                         .background(Color.indigo.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("إشعار ملخص الذكر اليومي")
+                        Text(L10n.tr("إشعار ملخص الذكر اليومي"))
                             .font(.body.weight(.medium))
-                        Text("يصلك يومياً عند صلاة العشاء (\(ishaDisplayTime))")
+                        Text(AppLanguage.shared.isEnglish ? "Arrives daily at Isha prayer (\(ishaDisplayTime))" : "يصلك يومياً عند صلاة العشاء (\(ishaDisplayTime))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -66,14 +66,14 @@ struct DhikrRemindersView: View {
                 }
                 .padding(.vertical, 3)
 
-                Button("بدء الإحصاءات من اليوم", role: .destructive) {
+                Button(L10n.tr("بدء الإحصاءات من اليوم"), role: .destructive) {
                     showStartFromTodayConfirmation = true
                 }
             }
 
-            Section("تذكيراتك المخصصة") {
+            Section(L10n.tr("تذكيراتك المخصصة")) {
                 if customReminders.isEmpty {
-                    Text("أضف تذكيراً بالوقت والنص اللذين تختارهما.")
+                    Text(L10n.tr("أضف تذكيراً بالوقت والنص اللذين تختارهما."))
                         .foregroundStyle(.secondary)
                 }
                 ForEach($customReminders) { $reminder in
@@ -81,7 +81,7 @@ struct DhikrRemindersView: View {
                         editor = reminder
                     } label: {
                         HStack {
-                            VStack(alignment: .trailing, spacing: 3) {
+                            VStack(alignment: AppLanguage.shared.isRTL ? .trailing : .leading, spacing: 3) {
                                 Text(reminder.title).foregroundStyle(.primary)
                                 Text(reminder.message).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                             }
@@ -97,17 +97,22 @@ struct DhikrRemindersView: View {
                 }
                 .onDelete(perform: deleteCustomReminders)
                 Button {
-                    editor = DhikrCustomReminder(title: "تذكير", message: "لا تنسَ ذكر الله", minutes: 20 * 60)
+                    editor = DhikrCustomReminder(
+                        title: AppLanguage.shared.isEnglish ? "Reminder" : "تذكير",
+                        message: AppLanguage.shared.isEnglish ? "Remember Allah" : "لا تنسَ ذكر الله",
+                        minutes: 20 * 60
+                    )
                 } label: {
-                    Label("تذكير جديد", systemImage: "plus.circle.fill")
+                    Label(L10n.tr("تذكير جديد"), systemImage: "plus.circle.fill")
                 }
             }
         }
-        .navigationTitle("التذكيرات")
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
+        .navigationTitle(L10n.tr("التذكيرات"))
         .task { DhikrSummaryNotificationScheduler.shared.refresh() }
-        .alert("بدء الإحصاءات من اليوم؟", isPresented: $showStartFromTodayConfirmation) {
-            Button("إلغاء", role: .cancel) {}
-            Button("بدء جديد", role: .destructive) {
+        .alert(L10n.tr("بدء الإحصاءات من اليوم؟"), isPresented: $showStartFromTodayConfirmation) {
+            Button(L10n.tr("إلغاء"), role: .cancel) {}
+            Button(L10n.tr("بدء جديد"), role: .destructive) {
                 Task {
                     switch await BiometricStatisticsDeletionAuthorizer.authorize() {
                     case .success:
@@ -118,10 +123,10 @@ struct DhikrRemindersView: View {
                 }
             }
         } message: {
-            Text("سيُحذف سجل أرقام الإحصاءات القديم فقط، ويبدأ احتساب اليوم من الصفر. لن تُحذف الأذكار أو الأهداف أو العداد الحالي.")
+            Text(L10n.tr("سيُحذف سجل أرقام الإحصاءات القديم فقط، ويبدأ احتساب اليوم من الصفر. لن تُحذف الأذكار أو الأهداف أو العداد الحالي."))
         }
-        .alert("لم يتم بدء الإحصاءات الجديدة", isPresented: Binding(get: { resetErrorMessage != nil }, set: { if !$0 { resetErrorMessage = nil } })) {
-            Button("حسناً", role: .cancel) {}
+        .alert(L10n.tr("لم يتم بدء الإحصاءات الجديدة"), isPresented: Binding(get: { resetErrorMessage != nil }, set: { if !$0 { resetErrorMessage = nil } })) {
+            Button(L10n.tr("حسناً"), role: .cancel) {}
         } message: {
             Text(resetErrorMessage ?? "")
         }
@@ -156,8 +161,8 @@ struct DhikrRemindersView: View {
         comparison(
             current: sync.statistics.totalToday(for: sync.currentZekr),
             previous: sync.statistics.totalYesterday(for: sync.currentZekr),
-            period: "البارحة",
-            label: "اليوم"
+            period: AppLanguage.shared.isEnglish ? "yesterday" : "البارحة",
+            label: AppLanguage.shared.isEnglish ? "today" : "اليوم"
         )
     }
 
@@ -166,10 +171,17 @@ struct DhikrRemindersView: View {
     }
 
     private func comparison(current: Int, previous: Int, period: String, label: String) -> String {
-        guard previous > 0 else { return "عدد الأذكار \(label): \(current)." }
-        if current > previous { return "عدد الأذكار \(label): \(current)، أكثر من \(period) بـ \(current - previous)." }
-        if current < previous { return "عدد الأذكار \(label): \(current)، أقل من \(period) بـ \(previous - current)." }
-        return "عدد الأذكار \(label): \(current)، مثل \(period)."
+        if AppLanguage.shared.isEnglish {
+            guard previous > 0 else { return "Dhikr count \(label): \(current)." }
+            if current > previous { return "Dhikr count \(label): \(current), \(current - previous) more than \(period)." }
+            if current < previous { return "Dhikr count \(label): \(current), \(previous - current) fewer than \(period)." }
+            return "Dhikr count \(label): \(current), same as \(period)."
+        } else {
+            guard previous > 0 else { return "عدد الأذكار \(label): \(current)." }
+            if current > previous { return "عدد الأذكار \(label): \(current)، أكثر من \(period) بـ \(current - previous)." }
+            if current < previous { return "عدد الأذكار \(label): \(current)، أقل من \(period) بـ \(previous - current)." }
+            return "عدد الأذكار \(label): \(current)، مثل \(period)."
+        }
     }
 
     private func summaryRow(title: String, symbol: String, detail: String) -> some View {
@@ -201,27 +213,32 @@ private struct DhikrCustomReminderEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("اسم التذكير", text: $reminder.title)
-                TextField("نص التذكير", text: $reminder.message, axis: .vertical)
+                TextField(L10n.tr("اسم التذكير"), text: $reminder.title)
+                TextField(L10n.tr("نص التذكير"), text: $reminder.message, axis: .vertical)
                     .lineLimit(2...4)
-                DatePicker("الوقت", selection: Binding(
+                DatePicker(L10n.tr("الوقت"), selection: Binding(
                     get: { Calendar.current.startOfDay(for: Date()).addingTimeInterval(Double(reminder.minutes) * 60) },
                     set: { date in
                         let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
                         reminder.minutes = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
                     }
                 ), displayedComponents: .hourAndMinute)
-                Toggle("تشغيل التذكير", isOn: $reminder.isEnabled).tint(.green)
+                Toggle(L10n.tr("تشغيل التذكير"), isOn: $reminder.isEnabled).tint(.green)
             }
-            .navigationTitle("تذكير مخصص")
+            .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
+            .navigationTitle(L10n.tr("تذكير مخصص"))
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("إلغاء") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(L10n.tr("إلغاء")) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("حفظ") {
+                    Button(L10n.tr("حفظ")) {
                         reminder.title = reminder.title.trimmingCharacters(in: .whitespacesAndNewlines)
                         reminder.message = reminder.message.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if reminder.title.isEmpty || reminder.title == "تذكير بالذكر" { reminder.title = "تذكير" }
-                        if reminder.message.isEmpty { reminder.message = "لا تنسَ ذكر الله" }
+                        if reminder.title.isEmpty || reminder.title == "تذكير بالذكر" {
+                            reminder.title = AppLanguage.shared.isEnglish ? "Reminder" : "تذكير"
+                        }
+                        if reminder.message.isEmpty {
+                            reminder.message = AppLanguage.shared.isEnglish ? "Don't forget to remember Allah" : "لا تنسَ ذكر الله"
+                        }
                         onSave(reminder)
                         dismiss()
                     }

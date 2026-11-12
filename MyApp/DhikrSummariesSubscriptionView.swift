@@ -203,8 +203,8 @@ public struct DhikrSummariesSubscriptionView: View {
             }
             .padding(.vertical, 16)
         }
-        .navigationTitle("ملخصات الذكر")
+        .navigationTitle(L10n.isEnglish ? "Dhikr Summaries" : "ملخصات الذكر")
         .navigationBarTitleDisplayMode(.inline)
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
     }
 }

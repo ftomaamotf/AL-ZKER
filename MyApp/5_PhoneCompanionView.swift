@@ -310,6 +310,8 @@ public struct TargetSoundItem: Identifiable, Hashable {
 public struct PhoneCompanionView: View {
     @ObservedObject private var watchAccess = WatchPurchaseAccess.shared
     @AppStorage(TapFeedbackPreference.soundEnabledKey) private var isTapSoundEnabled = true
+    @AppStorage("fadhkuruni_app_language_preference") private var appLanguagePreference = LanguagePreference.system.rawValue
+    @ObservedObject private var lang = AppLanguage.shared
     @ObservedObject private var sync = WatchSyncService.shared
     @State private var selectedTab = 0
     @State private var showQiblaInCard = false
@@ -384,16 +386,16 @@ public struct PhoneCompanionView: View {
                     }
                 }
         }
-        .alert("تصفير عدّاد الذكر؟", isPresented: $showCounterResetConfirmation, presenting: pendingCounterReset) { item in
-            Button("إلغاء", role: .cancel) { pendingCounterReset = nil }
-            Button("قبول", role: .destructive) {
+        .alert(L10n.tr("تصفير عدّاد الذكر؟"), isPresented: $showCounterResetConfirmation, presenting: pendingCounterReset) { item in
+            Button(L10n.tr("إلغاء"), role: .cancel) { pendingCounterReset = nil }
+            Button(L10n.tr("قبول"), role: .destructive) {
                 if sync.currentZekr == item.title { hasAlertedForCurrentTarget = false }
                 sync.resetZekrCount(for: item)
                 pendingCounterReset = nil
                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
             }
         } message: { item in
-            Text("سيُصفّر عدّاد «\(item.title)» فقط، وسيبقى الذكر والهدف محفوظين. هل تريد المتابعة؟")
+            Text(L10n.isEnglish ? "Only the count for \"\(item.title)\" will be reset. The Dhikr and target will remain saved. Continue?" : "سيُصفّر عدّاد «\(item.title)» فقط، وسيبقى الذكر والهدف محفوظين. هل تريد المتابعة؟")
         }
         .preferredColorScheme(isButtonsLocked ? .light : nil)
         .background(
@@ -495,11 +497,11 @@ public struct PhoneCompanionView: View {
                     
                     // نوع الذكر الحالي أو عنوان القبلة
                     VStack(spacing: 6) {
-                        Text(showPrayerTimesInCard ? "مواقيت الصلاة" : (showQiblaInCard ? "بوصلة القبلة الشريفة" : "الذكر الحالي"))
+                        Text(showPrayerTimesInCard ? L10n.tr("مواقيت الصلاة") : (showQiblaInCard ? L10n.tr("بوصلة القبلة الشريفة") : L10n.tr("الذكر الحالي")))
                             .font(.subheadline)
                             .foregroundColor(isButtonsLocked ? Color.black.opacity(0.5) : .secondary)
                         
-                        Text(showPrayerTimesInCard ? "بحسب موقعك اليوم" : (showQiblaInCard ? "وجّه الهاتف نحو الكعبة" : sync.currentZekr))
+                        Text(showPrayerTimesInCard ? L10n.tr("بحسب موقعك اليوم") : (showQiblaInCard ? L10n.tr("وجّه الهاتف نحو الكعبة") : L10n.zekrTitle(sync.currentZekr)))
                             .font(.system(size: (showQiblaInCard || showPrayerTimesInCard) ? 24 : 28, weight: .bold))
                             .foregroundColor(isButtonsLocked ? .black : .primary)
                             .lineLimit(1)
@@ -520,7 +522,7 @@ public struct PhoneCompanionView: View {
                     HStack(spacing: 6) {
                         Image(systemName: showPrayerTimesInCard ? "clock.fill" : (showQiblaInCard ? "safari.fill" : "hand.tap.fill"))
                             .font(.footnote)
-                        Text(showPrayerTimesInCard ? "المس زر المواقيت بأعلى الشاشة للعودة للعدّاد" : (showQiblaInCard ? "المس زر القبلة بأعلى الشاشة للعودة للعدّاد" : "المس في أي مكان بالشاشة للتسبيح"))
+                        Text(showPrayerTimesInCard ? L10n.tr("المس زر المواقيت بأعلى الشاشة للعودة للعدّاد") : (showQiblaInCard ? L10n.tr("المس زر القبلة بأعلى الشاشة للعودة للعدّاد") : L10n.tr("المس في أي مكان بالشاشة للتسبيح")))
                             .font(.subheadline)
                     }
                     .foregroundColor(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
@@ -576,7 +578,7 @@ public struct PhoneCompanionView: View {
                 (isButtonsLocked ? Color.white : Color(UIColor.systemBackground))
                     .ignoresSafeArea()
             )
-            .navigationTitle("فَاذْكُرُونِي")
+            .navigationTitle(L10n.tr("فَاذْكُرُونِي"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(isButtonsLocked ? Color.white : Color.clear, for: .navigationBar)
             .toolbarBackground(isButtonsLocked ? .visible : .automatic, for: .navigationBar)
@@ -586,15 +588,15 @@ public struct PhoneCompanionView: View {
                 ToolbarItem(placement: .principal) {
                     if isButtonsLocked {
                         Button(action: incrementPhoneCount) {
-                            Text("فَاذْكُرُونِي")
+                            Text(L10n.tr("فَاذْكُرُونِي"))
                                 .font(.headline.weight(.semibold))
                                 .foregroundStyle(.primary)
                                 .frame(width: 250, height: 44)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("التسبيح")
-                        .accessibilityHint("المس لإضافة تسبيحة")
+                        .accessibilityLabel(L10n.tr("التسبيح"))
+                        .accessibilityHint(L10n.tr("المس لإضافة تسبيحة"))
                     }
                 }
 
@@ -603,7 +605,7 @@ public struct PhoneCompanionView: View {
                         HStack(spacing: 8) {
                             NavigationLink { WatchGuideView() } label: {
                                 Image(systemName: "applewatch")
-                                    .accessibilityLabel("فاذكروني على الساعة — صور وطريقة الاستخدام")
+                                    .accessibilityLabel(L10n.tr("فاذكروني على الساعة — صور وطريقة الاستخدام"))
                             }
 
                             Button {
@@ -662,7 +664,7 @@ public struct PhoneCompanionView: View {
                                         .font(.system(size: 16, weight: .semibold))
                                         .foregroundStyle(showQiblaInCard ? Color.black : Color.green)
                                 }
-                                .accessibilityLabel(showQiblaInCard ? "العودة للعدّاد" : "اتجاه القبلة")
+                                .accessibilityLabel(showQiblaInCard ? L10n.tr("العودة للعدّاد") : L10n.tr("اتجاه القبلة"))
                             }
 
                             Button {
@@ -687,7 +689,7 @@ public struct PhoneCompanionView: View {
                                         .font(.system(size: 15, weight: .semibold))
                                         .foregroundStyle(showPrayerTimesInCard ? Color.black : Color.green)
                                 }
-                                .accessibilityLabel(showPrayerTimesInCard ? "العودة للعدّاد" : "مواقيت الصلاة")
+                                .accessibilityLabel(showPrayerTimesInCard ? L10n.tr("العودة للعدّاد") : L10n.tr("مواقيت الصلاة"))
                             }
                         }
                     }
@@ -746,7 +748,7 @@ public struct PhoneCompanionView: View {
         .scaleEffect(isPressingToolbarCover ? 0.84 : 1.0)
         .offset(y: isPressingToolbarCover ? 2.0 : 0)
         .animation(.spring(response: 0.25, dampingFraction: 0.65), value: isPressingToolbarCover)
-        .accessibilityLabel(sync.showsWatchClockCover ? "إظهار رقم عداد الساعة" : "عرض الوقت بدل رقم عداد الساعة")
+        .accessibilityLabel(sync.showsWatchClockCover ? L10n.tr("إظهار رقم عداد الساعة") : L10n.tr("عرض الوقت بدل رقم عداد الساعة"))
     }
 
     // MARK: - بطاقة العداد والهدف وخلفيتها
@@ -802,14 +804,14 @@ public struct PhoneCompanionView: View {
     private var prayerTimesCardContent: some View {
         VStack(spacing: 10) {
             HStack {
-                Label("مواقيت الصلاة", systemImage: "clock.fill")
+                Label(L10n.tr("مواقيت الصلاة"), systemImage: "clock.fill")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.green)
                 Spacer()
                 if prayerTimes.isLoading {
                     ProgressView().controlSize(.small)
                 } else if let next = prayerTimes.times.first(where: { $0.date > Date() }) {
-                    Text("القادمة: \(next.title)")
+                    Text("\(L10n.isEnglish ? "Next: " : "القادمة: ")\(next.localizedTitle)")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
@@ -825,7 +827,7 @@ public struct PhoneCompanionView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                    Button("تحديث الموقع") { PrayerTimesManager.shared.refresh() }
+                    Button(L10n.isEnglish ? "Update Location" : "تحديث الموقع") { PrayerTimesManager.shared.refresh() }
                         .buttonStyle(.bordered)
                         .tint(.green)
                 }
@@ -840,7 +842,7 @@ public struct PhoneCompanionView: View {
                                 .frame(width: 34, height: 34)
                                 .background(Color.green.opacity(0.13), in: Circle())
                             VStack(alignment: .leading, spacing: 1) {
-                                Text("الصلاة القادمة: \(schedule.prayer.title)")
+                                Text("\(L10n.isEnglish ? "Next Prayer: " : "الصلاة القادمة: ")\(schedule.prayer.localizedTitle)")
                                     .font(.caption.weight(.bold))
                                 Text(schedule.prayer.date.formatted(date: .omitted, time: .shortened))
                                     .font(.caption2.monospacedDigit())
@@ -878,7 +880,7 @@ public struct PhoneCompanionView: View {
                                 .foregroundStyle(prayer.date > Date() ? .green : .secondary)
                                 .frame(width: 17)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(prayer.title).font(.caption.weight(.semibold))
+                                Text(prayer.localizedTitle).font(.caption.weight(.semibold))
                                 Text(prayer.date.formatted(date: .omitted, time: .shortened))
                                     .font(.caption2.monospacedDigit())
                                     .foregroundStyle(.secondary)
@@ -894,7 +896,7 @@ public struct PhoneCompanionView: View {
                     NavigationLink {
                         PrayerTimeAdjustmentsView()
                     } label: {
-                        Label("التعديلات اليدوية", systemImage: "slider.horizontal.3")
+                        Label(L10n.tr("التعديلات اليدوية"), systemImage: "slider.horizontal.3")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.green)
                             .padding(.horizontal, 10)
@@ -915,7 +917,7 @@ public struct PhoneCompanionView: View {
                     showPrayerTimesInCard = false
                 }
             } label: {
-                Label("العودة لعدّاد التسبيح", systemImage: "arrow.uturn.backward")
+                Label(L10n.isEnglish ? "Return to Counter" : "العودة لعدّاد التسبيح", systemImage: "arrow.uturn.backward")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.green)
                     .padding(.horizontal, 14)
@@ -948,7 +950,7 @@ public struct PhoneCompanionView: View {
                         .minimumScaleFactor(0.45)
                         .foregroundStyle(.green)
                         .contentTransition(.numericText())
-                    Text("الهدف \(sync.target.formatted())")
+                    Text("\(L10n.tr("الهدف")) \(sync.target.formatted())")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(isButtonsLocked ? Color.black.opacity(0.6) : .secondary)
                         .lineLimit(1)
@@ -1302,12 +1304,12 @@ public struct PhoneCompanionView: View {
                 sync.decrementCurrentZekr()
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
             } label: {
-                counterControlLabel(title: "إنقاص", symbol: "minus", tint: .red)
+                counterControlLabel(title: L10n.tr("إنقاص"), symbol: "minus", tint: .red)
             }
             .frame(maxWidth: .infinity)
 
             Button { resetPhoneCount() } label: {
-                counterControlLabel(title: "تصفير", symbol: "arrow.counterclockwise", tint: .orange)
+                counterControlLabel(title: L10n.tr("تصفير"), symbol: "arrow.counterclockwise", tint: .orange)
             }
             .frame(maxWidth: .infinity)
 
@@ -1317,7 +1319,7 @@ public struct PhoneCompanionView: View {
                 }
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             } label: {
-                counterControlLabel(title: "قفل العدّاد", symbol: "lock.shield.fill", tint: .red)
+                counterControlLabel(title: L10n.tr("قفل العدّاد"), symbol: "lock.shield.fill", tint: .red)
             }
             .frame(maxWidth: .infinity)
         }
@@ -1342,7 +1344,7 @@ public struct PhoneCompanionView: View {
                 }
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             } label: {
-                counterControlLabel(title: "فتح قفل العداد", symbol: "lock.open.fill", tint: .red)
+                counterControlLabel(title: L10n.tr("فتح قفل العدّاد"), symbol: "lock.open.fill", tint: .red)
             }
 
             Button {
@@ -1350,7 +1352,7 @@ public struct PhoneCompanionView: View {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             } label: {
                 counterControlLabel(
-                    title: isPhoneCounterCoverActive ? "إظهار العداد" : "حجب العداد",
+                    title: isPhoneCounterCoverActive ? (L10n.isEnglish ? "Show Counter" : "إظهار العداد") : (L10n.isEnglish ? "Cover Counter" : "حجب العداد"),
                     symbol: isPhoneCounterCoverActive ? "eye.fill" : "eye.slash.fill",
                     tint: .green
                 )
@@ -1484,7 +1486,7 @@ public struct PhoneCompanionView: View {
                 VStack(spacing: 4) {
                     Image(systemName: "timer")
                         .font(.system(size: 20, weight: selectedTab == 0 ? .bold : .regular))
-                    Text("العداد")
+                    Text(L10n.tr("العداد"))
                         .font(.system(size: 11, weight: selectedTab == 0 ? .bold : .medium))
                 }
                 .foregroundColor(selectedTab == 0 ? .green : .secondary)
@@ -1501,10 +1503,10 @@ public struct PhoneCompanionView: View {
                 VStack(spacing: 4) {
                     Image(systemName: "list.bullet")
                         .font(.system(size: 20, weight: selectedTab == 1 ? .bold : .regular))
-                    Text("الأذكار والأهداف")
+                    Text(L10n.tr("الأذكار والأهداف"))
                         .font(.system(size: 11, weight: selectedTab == 1 ? .bold : .medium))
                 }
-                .accessibilityLabel("الأذكار والأهداف")
+                .accessibilityLabel(L10n.tr("الأذكار والأهداف"))
                 .foregroundColor(selectedTab == 1 ? .green : .secondary)
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
@@ -1519,10 +1521,10 @@ public struct PhoneCompanionView: View {
                 VStack(spacing: 4) {
                     Image(systemName: "bell.badge.fill")
                         .font(.system(size: 20, weight: selectedTab == 3 ? .bold : .regular))
-                    Text("التذكيرات")
+                    Text(L10n.tr("التذكيرات"))
                         .font(.system(size: 11, weight: selectedTab == 3 ? .bold : .medium))
                 }
-                .accessibilityLabel("التذكيرات")
+                .accessibilityLabel(L10n.tr("التذكيرات"))
                 .foregroundColor(selectedTab == 3 ? .green : .secondary)
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
@@ -1537,10 +1539,10 @@ public struct PhoneCompanionView: View {
                 VStack(spacing: 4) {
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 20, weight: selectedTab == 2 ? .bold : .regular))
-                    Text("الإعدادات")
+                    Text(L10n.tr("الإعدادات"))
                         .font(.system(size: 11, weight: selectedTab == 2 ? .bold : .medium))
                 }
-                .accessibilityLabel("الإعدادات")
+                .accessibilityLabel(L10n.tr("الإعدادات"))
                 .foregroundColor(selectedTab == 2 ? .green : .secondary)
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
@@ -1609,7 +1611,7 @@ public struct PhoneCompanionView: View {
                             Image(systemName: "plus.circle.fill")
                                 .font(.title3)
                                 .foregroundColor(.green)
-                            Text("إضافة ذكر جديد")
+                            Text(L10n.tr("إضافة ذكر جديد"))
                                 .fontWeight(.semibold)
                                 .foregroundColor(.primary)
                             Spacer()
@@ -1618,16 +1620,21 @@ public struct PhoneCompanionView: View {
                     }
                 }
                 
-                Section(header: Text("قائمة الأذكار — الحذف للأذكار المضافة فقط")) {
+                Section(header: Text(L10n.isEnglish ? "Azkar List — custom items can be deleted" : "قائمة الأذكار — الحذف للأذكار المضافة فقط")) {
                     ForEach(sync.azkarList) { item in
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(item.title)
+                                Text(L10n.zekrTitle(item.title))
                                     .font(.headline)
                                     .foregroundColor(sync.currentZekr == item.title ? .green : .primary)
+                                if let subtitle = L10n.zekrSubtitle(item.title) {
+                                    Text(subtitle)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
                                 
                                 HStack(spacing: 8) {
-                                    Text("المنجز: \(item.count) مرة")
+                                    Text("\(L10n.isEnglish ? "Count" : "المنجز"): \(item.count)")
                                         .font(.caption.bold())
                                         .foregroundColor(.green)
                                     
@@ -1635,7 +1642,7 @@ public struct PhoneCompanionView: View {
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                     
-                                    Text("الهدف: \(item.defaultTarget) مرة")
+                                    Text("\(L10n.isEnglish ? "Target" : "الهدف"): \(item.defaultTarget)")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
@@ -1667,7 +1674,7 @@ public struct PhoneCompanionView: View {
                             Button {
                                 requestCounterReset(item)
                             } label: {
-                                Label("تصفير العداد", systemImage: "arrow.counterclockwise")
+                                Label(L10n.tr("تصفير العداد"), systemImage: "arrow.counterclockwise")
                             }
                             .tint(.orange)
                         }
@@ -1684,12 +1691,12 @@ public struct PhoneCompanionView: View {
                     }) {
                         HStack {
                             Image(systemName: "arrow.counterclockwise")
-                            Text("استعادة الأذكار المدمجة الافتراضية")
+                            Text(L10n.isEnglish ? "Restore Default Built-in Azkar" : "استعادة الأذكار المدمجة الافتراضية")
                         }
                     }
                 }
             }
-            .navigationTitle("الأذكار والأهداف")
+            .navigationTitle(L10n.tr("الأذكار والأهداف"))
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     EditButton()
@@ -1699,13 +1706,13 @@ public struct PhoneCompanionView: View {
             .sheet(isPresented: $showAddSheet) {
                 NavigationStack {
                     Form {
-                        Section(header: Text("نص الذكر")) {
-                            TextField("مثال: سبحان الله وبحمده", text: $newZekrTitle)
+                        Section(header: Text(L10n.isEnglish ? "Dhikr Text" : "نص الذكر")) {
+                            TextField(L10n.isEnglish ? "e.g. Subhan Allah" : "مثال: سبحان الله وبحمده", text: $newZekrTitle)
                                 .textInputAutocapitalization(.never)
                         }
                         
-                        Section(header: Text("الهدف المحدد (عدد المرات)")) {
-                            Stepper("الهدف: \(newZekrTarget)", value: $newZekrTarget, in: 1...10000)
+                        Section(header: Text(L10n.isEnglish ? "Target" : "الهدف المحدد (عدد المرات)")) {
+                            Stepper("\(L10n.isEnglish ? "Target" : "الهدف"): \(newZekrTarget)", value: $newZekrTarget, in: 1...10000)
                             
                             HStack(spacing: 12) {
                                 Button("33") { newZekrTarget = 33 }.buttonStyle(.bordered)
@@ -1715,14 +1722,14 @@ public struct PhoneCompanionView: View {
                             }
                         }
                     }
-                    .navigationTitle("إضافة ذكر جديد")
+                    .navigationTitle(L10n.tr("إضافة ذكر جديد"))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("إلغاء") { showAddSheet = false }
+                            Button(L10n.tr("إلغاء")) { showAddSheet = false }
                         }
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("حفظ") {
+                            Button(L10n.tr("حفظ")) {
                                 sync.addZekr(title: newZekrTitle, target: newZekrTarget)
                                 showAddSheet = false
                             }
@@ -1736,13 +1743,13 @@ public struct PhoneCompanionView: View {
             .sheet(item: $editingItem) { item in
                 NavigationStack {
                     Form {
-                        Section(header: Text("تعديل نص الذكر")) {
-                            TextField("نص الذكر", text: $editZekrTitle)
+                        Section(header: Text(L10n.isEnglish ? "Edit Dhikr Text" : "تعديل نص الذكر")) {
+                            TextField(L10n.isEnglish ? "Dhikr Text" : "نص الذكر", text: $editZekrTitle)
                                 .textInputAutocapitalization(.never)
                         }
                         
-                        Section(header: Text("تعديل الهدف")) {
-                            Stepper("الهدف: \(editZekrTarget)", value: $editZekrTarget, in: 1...10000)
+                        Section(header: Text(L10n.isEnglish ? "Edit Target" : "تعديل الهدف")) {
+                            Stepper("\(L10n.isEnglish ? "Target" : "الهدف"): \(editZekrTarget)", value: $editZekrTarget, in: 1...10000)
                             
                             HStack(spacing: 12) {
                                 Button("33") { editZekrTarget = 33 }.buttonStyle(.bordered)
@@ -1752,14 +1759,14 @@ public struct PhoneCompanionView: View {
                             }
                         }
                     }
-                    .navigationTitle("تعديل الذكر")
+                    .navigationTitle(L10n.isEnglish ? "Edit Dhikr" : "تعديل الذكر")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("إلغاء") { editingItem = nil }
+                            Button(L10n.tr("إلغاء")) { editingItem = nil }
                         }
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("حفظ") {
+                            Button(L10n.isEnglish ? "Save Changes" : "حفظ") {
                                 sync.updateZekr(item: item, newTitle: editZekrTitle, newTarget: editZekrTarget)
                                 editingItem = nil
                             }
@@ -1769,20 +1776,20 @@ public struct PhoneCompanionView: View {
                 }
                 .presentationDetents([.medium])
             }
-            .confirmationDialog("حذف الأذكار المحددة وعداداتها؟", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
-                Button("حذف", role: .destructive) {
+            .confirmationDialog(L10n.isEnglish ? "Delete selected Dhikr and its counts?" : "حذف الأذكار المحددة وعداداتها؟", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+                Button(L10n.tr("حذف"), role: .destructive) {
                     for item in pendingDeletion { sync.deleteZekr(item: item) }
                     pendingDeletion = []
                 }
-                Button("إلغاء", role: .cancel) { pendingDeletion = [] }
+                Button(L10n.tr("إلغاء"), role: .cancel) { pendingDeletion = [] }
             }
-            .alert("استعادة الأذكار الافتراضية", isPresented: $showResetAlert) {
-                Button("إلغاء", role: .cancel) {}
-                Button("استعادة", role: .destructive) {
+            .alert(L10n.isEnglish ? "Restore Default Azkar" : "استعادة الأذكار الافتراضية", isPresented: $showResetAlert) {
+                Button(L10n.tr("إلغاء"), role: .cancel) {}
+                Button(L10n.tr("استعادة"), role: .destructive) {
                     Task {
                         switch await BiometricStatisticsDeletionAuthorizer.authorize(
-                            reason: "تأكيد استعادة الأذكار الافتراضية",
-                            failureMessage: "لم يتم تأكيد البصمة، لذلك لم تُستعد الأذكار."
+                            reason: L10n.isEnglish ? "Confirm restoring default Azkar" : "تأكيد استعادة الأذكار الافتراضية",
+                            failureMessage: L10n.isEnglish ? "Biometrics not confirmed, Azkar was not restored." : "لم يتم تأكيد البصمة، لذلك لم تُستعد الأذكار."
                         ) {
                         case .success:
                             sync.resetToDefaultAzkar()
@@ -1792,7 +1799,7 @@ public struct PhoneCompanionView: View {
                     }
                 }
             } message: {
-                Text("هل تريد بالتأكيد استعادة قائمة الأذكار المدمجة الأصلية وحذف الأذكار المخصصة؟")
+                Text(L10n.isEnglish ? "Are you sure you want to restore default built-in Azkar and delete custom items?" : "هل تريد بالتأكيد استعادة قائمة الأذكار المدمجة الأصلية وحذف الأذكار المخصصة؟")
             }
             .alert("لم تتم الاستعادة", isPresented: Binding(get: { azkarRestoreErrorMessage != nil }, set: { if !$0 { azkarRestoreErrorMessage = nil } })) {
                 Button("حسناً", role: .cancel) {}
@@ -1808,45 +1815,59 @@ public struct PhoneCompanionView: View {
             Form {
                 Section {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("فَاذْكُرُونِي").font(.caption).foregroundStyle(.green)
-                        Text("تجربتك، كما تحبّها").font(.subheadline).foregroundStyle(.secondary)
+                        Text(L10n.tr("فَاذْكُرُونِي")).font(.caption).foregroundStyle(.green)
+                        Text(L10n.tr("تجربتك، كما تحبّها")).font(.subheadline).foregroundStyle(.secondary)
                     }
                     .listRowBackground(Color.clear)
                 }
+                Section(L10n.tr("لغة التطبيق")) {
+                    Picker(L10n.tr("لغة التطبيق"), selection: $appLanguagePreference) {
+                        Text(L10n.tr("تلقائي (حسب لغة الجهاز)")).tag(LanguagePreference.system.rawValue)
+                        Text("العربية").tag(LanguagePreference.arabic.rawValue)
+                        Text("English").tag(LanguagePreference.english.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: appLanguagePreference) { _, preference in
+                        WatchSyncService.shared.syncLanguagePreference(preference)
+                    }
+                    Text(L10n.isEnglish ? "App language and layout direction automatically update on iPhone and sync to Apple Watch." : "يتغيّر اتجاه الواجهة واللغة على الآيفون، وتنتقل اللغة نفسها إلى الساعة المتصلة.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Section {
-                    Label("عدد الذكر على أيقونة التطبيق", systemImage: "app.badge")
-                    Text("تعرض الشارة آخر عدد محفوظ للذكر الحالي، وتختفي عند الصفر. اسمح بالإشعارات والشارات من إعدادات الآيفون. يتحدث عدد الساعة عند وصول المزامنة إلى الآيفون.")
+                    Label(L10n.tr("عدد الذكر على أيقونة التطبيق"), systemImage: "app.badge")
+                    Text(L10n.tr("تعرض الشارة آخر عدد محفوظ للذكر الحالي، وتختفي عند الصفر. اسمح بالإشعارات والشارات من إعدادات الآيفون. يتحدث عدد الساعة عند وصول المزامنة إلى الآيفون."))
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Section("دليل الاستخدام") {
+                Section(L10n.tr("دليل الاستخدام")) {
                     NavigationLink {
                         PhoneButtonsGuideView { }
                     } label: {
-                        settingsLabel("دليل استخدام الأزرار", subtitle: "شرح لكل زر وطريقة ضغطه واستخدامه", icon: "questionmark.circle.fill")
+                        settingsLabel(L10n.tr("دليل استخدام الأزرار"), subtitle: L10n.tr("شرح لكل زر وطريقة ضغطه واستخدامه"), icon: "questionmark.circle.fill")
                     }
                 }
-                Section("على الآيفون") {
+                Section(L10n.isEnglish ? "On iPhone" : "على الآيفون") {
                     HStack(spacing: 12) {
                         Image(systemName: "hand.raised.fill")
                             .foregroundStyle(.green)
                             .frame(width: 28, height: 28)
                             .background(.green.opacity(0.12), in: Circle())
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("وضع أمان")
+                            Text(L10n.tr("وضع أمان"))
                                 .font(.body.weight(.medium))
-                            Text(sync.isDrivingLocked
+                            Text(L10n.tr(sync.isDrivingLocked
                                  ? "التطبيق والساعة متوقفان أثناء القيادة"
-                                 : "يتوقف التسبيح على الآيفون والساعة تلقائياً أثناء القيادة، ويعود بعد انخفاض السرعة.")
+                                 : "يتوقف التسبيح على الآيفون والساعة تلقائياً أثناء القيادة، ويعود بعد انخفاض السرعة."))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
                         Image(systemName: "checkmark.seal.fill")
                             .foregroundStyle(.green)
-                            .accessibilityLabel("وضع الأمان مفعّل")
+                            .accessibilityLabel(L10n.tr("وضع الأمان مفعّل"))
                     }
                     Toggle(isOn: $isTapSoundEnabled) {
-                        settingsLabel("صوت الضغطات", subtitle: "نقرة خفيفة", icon: "speaker.wave.2")
+                        settingsLabel(L10n.tr("صوت الضغطات"), subtitle: L10n.tr("نقرة خفيفة"), icon: "speaker.wave.2")
                     }
                     .tint(.green)
                     .onChange(of: isTapSoundEnabled) { _, enabled in
@@ -1857,21 +1878,21 @@ public struct PhoneCompanionView: View {
                         else { TapFeedback.shared.stop() }
                     }
                     NavigationLink { TapFeedbackSettingsView() } label: {
-                        settingsLabel("تنبيه الضغطات", subtitle: "الصوت والاهتزاز", icon: "hand.tap")
+                        settingsLabel(L10n.tr("تنبيه الضغطات"), subtitle: L10n.tr("الصوت والاهتزاز"), icon: "hand.tap")
                     }
                     NavigationLink {
                         Form { phoneTargetSoundSettings }
-                            .navigationTitle("تنبيهات الأهداف")
+                            .navigationTitle(L10n.tr("تنبيهات الأهداف"))
                     } label: {
-                        settingsLabel("تنبيهات الأهداف", subtitle: "تنبيه إكمال الذكر على الآيفون", icon: "bell.badge")
+                        settingsLabel(L10n.tr("تنبيهات الأهداف"), subtitle: L10n.tr("تنبيه إكمال الذكر على الآيفون"), icon: "bell.badge")
                     }
                 }
-                Section("مواقيت الصلاة") {
+                Section(L10n.tr("مواقيت الصلاة")) {
                     NavigationLink { PrayerTimeAdjustmentsView() } label: {
-                        settingsLabel("التعديلات اليدوية", subtitle: "تقديم أو تأخير مواقيت الصلاة بالدقائق", icon: "clock.arrow.circlepath")
+                        settingsLabel(L10n.tr("التعديلات اليدوية"), subtitle: L10n.tr("تقديم أو تأخير مواقيت الصلاة بالدقائق"), icon: "clock.arrow.circlepath")
                     }
                     NavigationLink { PrayerAdhanSettingsView() } label: {
-                        settingsLabel("نغمة كل صلاة", subtitle: "اختر نغمة التنبيه لكل وقت", icon: "bell.and.waves.left.and.right.fill")
+                        settingsLabel(L10n.tr("نغمة كل صلاة"), subtitle: L10n.tr("اختر نغمة التنبيه لكل وقت"), icon: "bell.and.waves.left.and.right.fill")
                     }
                 }
                 Section {
@@ -1881,73 +1902,73 @@ public struct PhoneCompanionView: View {
                                 .font(.title2).foregroundStyle(.green)
                                 .frame(width: 42, height: 42)
                                 .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
-                            Text("إدارة الساعة").font(.title3.weight(.semibold))
+                            Text(L10n.isEnglish ? "Watch Management" : "إدارة الساعة").font(.title3.weight(.semibold))
                             Spacer()
-                            Label("مجانية بالكامل", systemImage: "checkmark.seal.fill")
+                            Label(L10n.isEnglish ? "100% Free" : "مجانية بالكامل", systemImage: "checkmark.seal.fill")
                                 .font(.caption).foregroundStyle(.green)
                         }
-                        Text("نسخة Apple Watch مجانية بالكامل للجميع، مع كامل ميزات التسبيح والمزامنة والتاج وتغطية الواجهة.")
+                        Text(L10n.isEnglish ? "Apple Watch version is 100% free with full tasbih, sync, crown options, and privacy cover." : "نسخة Apple Watch مجانية بالكامل للجميع، مع كامل ميزات التسبيح والمزامنة والتاج وتغطية الواجهة.")
                             .font(.caption).foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
-                    watchSettingsLink("الأذكار والأهداف", subtitle: "الذكر المعروض، الهدف وتصفير العدّاد", icon: "list.bullet") {
-                        Form { watchAzkarSettings }.navigationTitle("الأذكار والأهداف")
+                    watchSettingsLink(L10n.tr("الأذكار والأهداف"), subtitle: L10n.isEnglish ? "Dhikr, targets & reset" : "الذكر المعروض، الهدف وتصفير العدّاد", icon: "list.bullet") {
+                        Form { watchAzkarSettings }.navigationTitle(L10n.tr("الأذكار والأهداف"))
                     }
-                    Toggle("زر إنقاص العداد", isOn: Binding(
+                    Toggle(L10n.tr("زر إنقاص العداد"), isOn: Binding(
                         get: { sync.showsDecrementButton },
                         set: { sync.setShowsDecrementButton($0) }
                     ))
                     .tint(.green)
-                    Toggle("زر تصفير العداد", isOn: Binding(
+                    Toggle(L10n.tr("زر تصفير العداد"), isOn: Binding(
                         get: { sync.showsResetButton },
                         set: { sync.setShowsResetButton($0) }
                     ))
                     .tint(.green)
-                    watchSettingsLink("طرق العدّ والإيماءات", subtitle: "اللمس والنقر المزدوج", icon: "hand.tap") {
-                        Form { watchGestureSettings }.navigationTitle("طرق العدّ والإيماءات")
+                    watchSettingsLink(L10n.isEnglish ? "Counting Methods & Gestures" : "طرق العدّ والإيماءات", subtitle: L10n.isEnglish ? "Tap & Double Tap" : "اللمس والنقر المزدوج", icon: "hand.tap") {
+                        Form { watchGestureSettings }.navigationTitle(L10n.isEnglish ? "Counting Methods & Gestures" : "طرق العدّ والإيماءات")
                     }
-                    watchSettingsLink("صوت الساعة واهتزازها", icon: "waveform") {
+                    watchSettingsLink(L10n.isEnglish ? "Watch Sound & Haptics" : "صوت الساعة واهتزازها", icon: "waveform") {
                         Form {
-                            Section("على الساعة") {
-                                Label("تنبيه الضغطات", systemImage: "speaker.wave.2")
-                                Text("افتح إعدادات تنبيه الضغطات داخل تطبيق الساعة لاختيار النقرة الخفيفة أو الاهتزاز أو كتم التنبيه. يُحفظ اختيار الساعة بصورة مستقلة عن الآيفون.")
+                            Section(L10n.isEnglish ? "On Apple Watch" : "على الساعة") {
+                                Label(L10n.tr("تنبيه الضغطات"), systemImage: "speaker.wave.2")
+                                Text(L10n.isEnglish ? "Open Tap Feedback in watch app to select click, haptics or mute. Settings are saved independently." : "افتح إعدادات تنبيه الضغطات داخل تطبيق الساعة لاختيار النقرة الخفيفة أو الاهتزاز أو كتم التنبيه. يُحفظ اختيار الساعة بصورة مستقلة عن الآيفون.")
                                     .foregroundStyle(.secondary)
                             }
-                        }.navigationTitle("صوت الساعة واهتزازها")
+                        }.navigationTitle(L10n.isEnglish ? "Watch Sound & Haptics" : "صوت الساعة واهتزازها")
                     }
-                    watchSettingsLink("الاتصال والمزامنة", icon: "arrow.triangle.2.circlepath") {
-                        Form { watchSyncSettings }.navigationTitle("الاتصال والمزامنة")
+                    watchSettingsLink(L10n.isEnglish ? "Connectivity & Sync" : "الاتصال والمزامنة", icon: "arrow.triangle.2.circlepath") {
+                        Form { watchSyncSettings }.navigationTitle(L10n.isEnglish ? "Connectivity & Sync" : "الاتصال والمزامنة")
                     }
-                    watchSettingsLink("دليل الساعة", icon: "book") { WatchGuideView() }
+                    watchSettingsLink(L10n.isEnglish ? "Watch Guide" : "دليل الساعة", icon: "book") { WatchGuideView() }
                 } header: {
-                    Text("تجربة الساعة")
+                    Text(L10n.isEnglish ? "Apple Watch Experience" : "تجربة الساعة")
                 } footer: {
-                    Text("جميع ميزات التطبيق والتسبيح وساعة Apple Watch مجانية بالكامل للجميع.")
+                    Text(L10n.isEnglish ? "All core app features and Apple Watch app are completely free for everyone." : "جميع ميزات التطبيق والتسبيح وساعة Apple Watch مجانية بالكامل للجميع.")
                 }
-                Section("الحساب والمساعدة") {
+                Section(L10n.isEnglish ? "Support & Legal" : "الحساب والمساعدة") {
                     Button {
                         requestAppReview()
                     } label: {
-                        settingsLabel("قيّم التطبيق", subtitle: "شاركنا رأيك في متجر App Store", icon: "star.bubble.fill")
+                        settingsLabel(L10n.isEnglish ? "Rate the App" : "قيّم التطبيق", subtitle: L10n.isEnglish ? "Share your review on App Store" : "شاركنا رأيك في متجر App Store", icon: "star.bubble.fill")
                     }
                     .buttonStyle(.plain)
                     NavigationLink { SubscriptionView() } label: {
-                        settingsLabel("الاشتراك والأسعار", subtitle: "البرنامج مجاني، ملخصات الذكر شهر مجاناً ثم 1$", icon: "sparkles")
+                        settingsLabel(L10n.isEnglish ? "Subscription & Pricing" : "الاشتراك والأسعار", subtitle: L10n.isEnglish ? "App is free, Dhikr summaries 1 month free then $1" : "البرنامج مجاني، ملخصات الذكر شهر مجاناً ثم 1$", icon: "sparkles")
                     }
                     NavigationLink {
                         Form {
-                            Section("الدعم والمساعدة") { SupportLink() }
-                            Section("الخصوصية") {
-                                NavigationLink("سياسة الخصوصية") { PrivacyPolicyView() }
-                                NavigationLink("تراخيص أصوات الأذان") { AdhanAttributionsView() }
+                            Section(L10n.isEnglish ? "Support & Help" : "الدعم والمساعدة") { SupportLink() }
+                            Section(L10n.tr("الخصوصية")) {
+                                NavigationLink(L10n.tr("سياسة الخصوصية")) { PrivacyPolicyView() }
+                                NavigationLink(L10n.isEnglish ? "Adhan Sound Credits" : "تراخيص أصوات الأذان") { AdhanAttributionsView() }
                             }
                             aboutSettings
-                        }.navigationTitle("الدعم والخصوصية")
+                        }.navigationTitle(L10n.isEnglish ? "Support & Privacy" : "الدعم والخصوصية")
                     } label: {
-                        settingsLabel("الدعم والخصوصية", subtitle: "المساعدة وحول التطبيق", icon: "checkmark.shield")
+                        settingsLabel(L10n.isEnglish ? "Support & Privacy" : "الدعم والخصوصية", subtitle: L10n.isEnglish ? "Help & About App" : "المساعدة وحول التطبيق", icon: "checkmark.shield")
                     }
                 }
             }
-            .navigationTitle("الإعدادات")
+            .navigationTitle(L10n.tr("الإعدادات"))
             .tint(.green)
             .task { await watchAccess.refresh() }
         }
@@ -2153,25 +2174,25 @@ public struct PhoneCompanionView: View {
                 
     }
     private var aboutSettings: some View {
-                Section(header: Text("حول التطبيق")) {
+                Section(header: Text(L10n.isEnglish ? "About App" : "حول التطبيق")) {
                     HStack {
-                        Text("اسم البرنامج")
+                        Text(L10n.isEnglish ? "App Name" : "اسم البرنامج")
                         Spacer()
-                        Text("فَاذْكُرُونِي")
+                        Text(L10n.tr("فَاذْكُرُونِي"))
                             .foregroundColor(.gray)
                     }
                     
                     HStack {
-                        Text("الإصدار")
+                        Text(L10n.isEnglish ? "Version" : "الإصدار")
                         Spacer()
                         Text("2.8")
                             .foregroundColor(.gray)
                     }
                     
                     HStack {
-                        Text("المطور")
+                        Text(L10n.isEnglish ? "Developer" : "المطور")
                         Spacer()
-                        Text("عبدالله عجمي")
+                        Text(L10n.isEnglish ? "Abdullah Hajmi" : "عبدالله عجمي")
                             .foregroundColor(.gray)
                     }
                 }
@@ -2186,9 +2207,14 @@ enum PrayerTimeAdjustmentStore {
     }
 
     static func display(_ minutes: Int) -> String {
-        guard minutes != 0 else { return "0 دقيقة" }
-        let direction = minutes > 0 ? "تأخير" : "تقديم"
-        return "\(direction) \(abs(minutes)) دقيقة"
+        guard minutes != 0 else { return L10n.isEnglish ? "0 min" : "0 دقيقة" }
+        if L10n.isEnglish {
+            let direction = minutes > 0 ? "Delay" : "Advance"
+            return "\(direction) \(abs(minutes)) min"
+        } else {
+            let direction = minutes > 0 ? "تأخير" : "تقديم"
+            return "\(direction) \(abs(minutes)) دقيقة"
+        }
     }
 }
 

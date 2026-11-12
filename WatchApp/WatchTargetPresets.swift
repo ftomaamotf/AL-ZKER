@@ -21,7 +21,7 @@ struct WatchTargetPresets: View {
                         .fadhkuruniGlass(tint: selection == value ? .green : .white, radius: 12)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("هدف \(value) مرة")
+                .accessibilityLabel("\(L10n.tr("الهدف")) \(value) \(L10n.tr("مرة"))")
                 .accessibilityAddTraits(selection == value ? [.isSelected] : [])
             }
         }

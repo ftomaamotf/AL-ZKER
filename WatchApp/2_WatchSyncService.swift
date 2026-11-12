@@ -13,6 +13,10 @@ struct WatchPrayerScheduleEntry: Codable, Identifiable, Hashable {
     let title: String
     let symbol: String
     let date: Date
+
+    var localizedTitle: String {
+        L10n.prayerName(id: id, arabicFallback: title)
+    }
 }
 
 public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelegate {
@@ -861,6 +865,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         applyClockCoverPreference(payload)
         applyWatchClockPhoto(payload)
         applyDrivingLock(payload)
+        if let langRaw = payload["languagePreference"] as? String {
+            AppLanguage.shared.preferenceRaw = langRaw
+        }
         if let data = payload["watchPrayerTimesV1"] as? Data,
            let received = try? JSONDecoder().decode([WatchPrayerScheduleEntry].self, from: data),
            received != prayerTimes {

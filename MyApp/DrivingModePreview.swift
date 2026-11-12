@@ -46,13 +46,13 @@ struct DrivingModePreview: View {
 
                 VStack(spacing: 22) {
                     // 1. Top Header
-                    Text("فَاذْكُرُونِي")
+                    Text(L10n.tr("فَاذْكُرُونِي"))
                         .font(.headline)
                         .foregroundStyle(.secondary)
                     
                     HStack(spacing: 8) {
                         Circle().fill(Color.orange).frame(width: 8, height: 8)
-                        Text("وضع الأمان مفعّل")
+                        Text(L10n.isEnglish ? "Safety Mode Active" : "وضع الأمان مفعّل")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(.orange)
                     }
@@ -83,11 +83,11 @@ struct DrivingModePreview: View {
                             }
                             .shadow(color: .teal.opacity(0.35), radius: 18)
 
-                        Text("التطبيق متوقف")
+                        Text(L10n.isEnglish ? "App Paused" : "التطبيق متوقف")
                             .font(.title2.weight(.bold))
                             .foregroundStyle(.white)
 
-                        Text("مؤقتاً أثناء القيادة")
+                        Text(L10n.isEnglish ? "Temporarily while driving for your safety" : "مؤقتاً أثناء القيادة")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.75))
                             .multilineTextAlignment(.center)
@@ -101,7 +101,7 @@ struct DrivingModePreview: View {
                     VStack(spacing: 14) {
                         HStack(spacing: 6) {
                             Circle().fill(Color.green).frame(width: 7, height: 7)
-                            Text("العدد محفوظ (\(sync.currentCount))")
+                            Text(L10n.isEnglish ? "Count saved (\(sync.currentCount))" : "العدد محفوظ (\(sync.currentCount))")
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(.white.opacity(0.9))
                         }
@@ -120,7 +120,7 @@ struct DrivingModePreview: View {
                             HStack(spacing: 8) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 18, weight: .bold))
-                                Text("تأكيد الوقوف والعودة للعدّ")
+                                Text(L10n.isEnglish ? "Confirm Stopped & Resume" : "تأكيد الوقوف والعودة للعدّ")
                                     .font(.system(size: 16, weight: .bold))
                             }
                             .foregroundStyle(.white)
@@ -139,7 +139,7 @@ struct DrivingModePreview: View {
                         .buttonStyle(.plain)
                         .padding(.horizontal, 20)
 
-                        Text("يعود العداد للعمل تلقائياً عند توقف السيارة، أو اضغط للتأكيد يدوياً")
+                        Text(L10n.isEnglish ? "Counting resumes automatically when stationary, or tap above" : "يعود العداد للعمل تلقائياً عند توقف السيارة، أو اضغط للتأكيد يدوياً")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -150,7 +150,7 @@ struct DrivingModePreview: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
         .preferredColorScheme(.dark)
     }
 }

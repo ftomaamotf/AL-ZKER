@@ -64,7 +64,7 @@ struct WatchContentView: View {
                         .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(isQiblaActive ? "العودة للعدّاد" : "اتجاه القبلة")
+                    .accessibilityLabel(isQiblaActive ? L10n.tr("العودة للعدّاد") : L10n.tr("اتجاه القبلة"))
 
                 }
                 .offset(y: -24)
@@ -74,29 +74,29 @@ struct WatchContentView: View {
                 // عنوان الذكر / التطبيق
                 VStack(alignment: .trailing, spacing: 1) {
                     if isPrayerTimesActive {
-                        Text("مواقيت الصلاة")
+                        Text(L10n.tr("مواقيت الصلاة"))
                             .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                     } else if isQiblaActive {
-                        Text("اتجاه القبلة")
+                        Text(L10n.tr("اتجاه القبلة"))
                             .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
 
-                        Text(qibla.isAligned ? "محاذاة تامة" : "وجّه الساعة")
+                        Text(qibla.isAligned ? L10n.tr("محاذاة تامة") : L10n.tr("وجّه الساعة"))
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(qibla.isAligned ? Color.yellow : Color.secondary)
                             .lineLimit(1)
                     } else if sync.showsWatchClockCover {
                         // عند حجب شاشة الساعة: إخفاء نوع الذكر تماماً للخصوصية التامة
-                        Text("فَاذْكُرُونِي")
+                        Text(L10n.tr("فَاذْكُرُونِي"))
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                     } else {
-                        Text(sync.currentZekr)
+                        Text(L10n.zekrTitle(sync.currentZekr))
                             .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
@@ -132,7 +132,7 @@ struct WatchContentView: View {
                 }
                 .buttonStyle(.plain)
                 .offset(y: -24)
-                .accessibilityLabel(isPrayerTimesActive ? "العودة للعدّاد" : "مواقيت الصلاة")
+                .accessibilityLabel(isPrayerTimesActive ? L10n.tr("العودة للعدّاد") : L10n.tr("مواقيت الصلاة"))
 
             }
             .padding(.horizontal, 4)
@@ -177,7 +177,7 @@ struct WatchContentView: View {
                     .onTapGesture { returnToCounter() }
             }
         }
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
         // ربط تدوير زر التاج (Digital Crown) لإظهار الخيارات
         .focusable()
         .focused($isCrownFocused)
@@ -507,10 +507,10 @@ private struct EmeraldAnalogClock: View {
                         Image(systemName: next.symbol)
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(.mint)
-                        Text("القادمة")
+                        Text(L10n.isEnglish ? "Next" : "القادمة")
                             .font(.system(size: 9, weight: .medium))
                             .foregroundStyle(.secondary)
-                        Text(next.title)
+                        Text(next.localizedTitle)
                             .font(.system(size: 17, weight: .bold))
                             .lineLimit(1)
                             .minimumScaleFactor(0.65)
@@ -529,9 +529,9 @@ private struct EmeraldAnalogClock: View {
                         Image(systemName: "location.circle")
                             .font(.system(size: 25, weight: .light))
                             .foregroundStyle(.green)
-                        Text("تحديث المواقيت")
+                        Text(L10n.isEnglish ? "Update Times" : "تحديث المواقيت")
                             .font(.system(size: 12, weight: .semibold))
-                        Text("افتح تطبيق الآيفون")
+                        Text(L10n.isEnglish ? "Open iPhone App" : "افتح تطبيق الآيفون")
                             .font(.system(size: 9))
                             .foregroundStyle(.secondary)
                     }
@@ -551,10 +551,17 @@ private struct EmeraldAnalogClock: View {
 
     private func watchPrayerRemainingText(until date: Date, from now: Date) -> String {
         let minutes = max(1, Int((date.timeIntervalSince(now) / 60).rounded(.up)))
-        if minutes < 60 { return "باقي \(minutes) د" }
-        let hours = minutes / 60
-        let remainder = minutes % 60
-        return remainder == 0 ? "باقي \(hours) س" : "باقي \(hours) س \(remainder) د"
+        if L10n.isEnglish {
+            if minutes < 60 { return "in \(minutes)m" }
+            let hours = minutes / 60
+            let remainder = minutes % 60
+            return remainder == 0 ? "in \(hours)h" : "in \(hours)h \(remainder)m"
+        } else {
+            if minutes < 60 { return "باقي \(minutes) د" }
+            let hours = minutes / 60
+            let remainder = minutes % 60
+            return remainder == 0 ? "باقي \(hours) س" : "باقي \(hours) س \(remainder) د"
+        }
     }
 
     // MARK: - بطاقة القبلة داخل دائرة الساعة
@@ -645,22 +652,22 @@ private struct EmeraldAnalogClock: View {
 
                     // علامات الجهات
                     VStack {
-                        Text("ش")
+                        Text(L10n.isEnglish ? "N" : "ش")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(.red)
                         Spacer()
-                        Text("ج")
+                        Text(L10n.isEnglish ? "S" : "ج")
                             .font(.system(size: 8, weight: .semibold))
                             .foregroundStyle(.secondary)
                     }
                     .frame(height: 114)
 
                     HStack {
-                        Text("غ")
+                        Text(L10n.isEnglish ? "W" : "غ")
                             .font(.system(size: 8, weight: .semibold))
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Text("ش")
+                        Text(L10n.isEnglish ? "E" : "ق")
                             .font(.system(size: 8, weight: .semibold))
                             .foregroundStyle(.secondary)
                     }
@@ -693,7 +700,13 @@ private struct EmeraldAnalogClock: View {
                     VStack {
                         Spacer()
                         let angle = qibla.needleAngle
-                        Text(abs(angle) <= 12 ? "اقتربت" : (angle > 0 ? "اتجه يميناً" : "اتجه يساراً"))
+                        let directionText: String = {
+                            if abs(angle) <= 12 {
+                                return L10n.isEnglish ? "Almost there" : "اقتربت"
+                            }
+                            return angle > 0 ? (L10n.isEnglish ? "Turn right" : "اتجه يميناً") : (L10n.isEnglish ? "Turn left" : "اتجه يساراً")
+                        }()
+                        Text(directionText)
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(abs(angle) <= 12 ? Color.yellow : Color.green)
                             .padding(.horizontal, 7)
@@ -781,7 +794,7 @@ struct CrownOptionsView: View {
             VStack(spacing: 0) {
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        Text("الخيارات")
+                        Text(L10n.tr("الخيارات"))
                             .font(.headline)
                             .foregroundStyle(.green)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -792,18 +805,18 @@ struct CrownOptionsView: View {
                         NavigationLink {
                             WatchSelectZekrView(sync: sync, isPresented: $isPresented)
                         } label: {
-                            CrownOptionCard(title: "الأذكار", subtitle: "اختر ذكرك", symbol: "arrow.triangle.2.circlepath", tint: .green)
+                            CrownOptionCard(title: L10n.tr("الأذكار"), subtitle: L10n.tr("اختر ذكرك"), symbol: "arrow.triangle.2.circlepath", tint: .green)
                         }
                         .buttonStyle(.plain)
 
                         NavigationLink {
                             WatchSetTargetView(sync: sync, isPresented: $isPresented)
                         } label: {
-                            CrownOptionCard(title: "الهدف", subtitle: "\(sync.target.formatted()) مرة", symbol: "target", tint: .yellow)
+                            CrownOptionCard(title: L10n.tr("الهدف"), subtitle: "\(sync.target.formatted()) \(L10n.tr("مرة"))", symbol: "target", tint: .yellow)
                         }
                         .buttonStyle(.plain)
 
-                        Toggle("زر إنقاص العداد", isOn: Binding(
+                        Toggle(L10n.tr("زر إنقاص العداد"), isOn: Binding(
                             get: { sync.showsDecrementButton },
                             set: { sync.setShowsDecrementButton($0) }
                         ))
@@ -811,7 +824,7 @@ struct CrownOptionsView: View {
                         .tint(.green)
                         .padding(10)
 
-                        Toggle("زر تصفير العداد", isOn: Binding(
+                        Toggle(L10n.tr("زر تصفير العداد"), isOn: Binding(
                             get: { sync.showsResetButton },
                             set: { sync.setShowsResetButton($0) }
                         ))
@@ -819,7 +832,7 @@ struct CrownOptionsView: View {
                         .tint(.green)
                         .padding(10)
 
-                        Toggle("عرض وجه الساعة", isOn: Binding(
+                        Toggle(L10n.tr("عرض وجه الساعة"), isOn: Binding(
                             get: { sync.showsWatchClockCover },
                             set: { sync.setWatchClockCover($0) }
                         ))
@@ -827,7 +840,7 @@ struct CrownOptionsView: View {
                         .tint(.mint)
                         .padding(10)
 
-                        Text("إدارة العداد")
+                        Text(L10n.tr("إدارة العداد"))
                             .font(.caption2.weight(.medium))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -840,7 +853,7 @@ struct CrownOptionsView: View {
                             WatchKeepAwakeManager.shared.recordCountingActivity()
                             WKInterfaceDevice.current().play(.click)
                         } label: {
-                            CrownOptionCard(title: "إنقاص العدد", subtitle: "العدد الحالي: \(sync.currentCount.formatted())", symbol: "minus.circle", tint: .orange, showsChevron: false)
+                            CrownOptionCard(title: L10n.tr("إنقاص العدد"), subtitle: L10n.isEnglish ? "Current: \(sync.currentCount.formatted())" : "العدد الحالي: \(sync.currentCount.formatted())", symbol: "minus.circle", tint: .orange, showsChevron: false)
                         }
                         .buttonStyle(.plain)
                         .disabled(sync.currentCount == 0)
@@ -850,7 +863,7 @@ struct CrownOptionsView: View {
                             pendingReset = sync.azkarList.first { $0.title == sync.currentZekr }
                             showResetConfirmation = pendingReset != nil
                         } label: {
-                            CrownOptionCard(title: "تصفير العداد", subtitle: "البدء من جديد", symbol: "arrow.counterclockwise", tint: .red, showsChevron: false, isDestructive: true)
+                            CrownOptionCard(title: L10n.tr("تصفير العداد"), subtitle: L10n.tr("البدء من جديد"), symbol: "arrow.counterclockwise", tint: .red, showsChevron: false, isDestructive: true)
                         }
                         .buttonStyle(.plain)
                         .disabled(sync.currentCount == 0)
@@ -859,14 +872,14 @@ struct CrownOptionsView: View {
                         NavigationLink {
                             TapFeedbackSettingsView()
                         } label: {
-                            CrownOptionCard(title: "تنبيه الضغطات", subtitle: "نغمة قصيرة أو اهتزاز", symbol: "hand.tap", tint: .blue)
+                            CrownOptionCard(title: L10n.tr("تنبيه الضغطات"), subtitle: L10n.tr("نغمة قصيرة أو اهتزاز"), symbol: "hand.tap", tint: .blue)
                         }
                         .buttonStyle(.plain)
 
                         NavigationLink {
                             PrivacyPolicyView()
                         } label: {
-                            CrownOptionCard(title: "الخصوصية", subtitle: nil, symbol: "checkmark.shield", tint: .gray)
+                            CrownOptionCard(title: L10n.tr("الخصوصية"), subtitle: nil, symbol: "checkmark.shield", tint: .gray)
                         }
                         .buttonStyle(.plain)
                         .padding(.top, 2)
@@ -874,7 +887,7 @@ struct CrownOptionsView: View {
                         NavigationLink {
                             WatchButtonsGuideView { isPresented = false }
                         } label: {
-                            CrownOptionCard(title: "دليل استخدام الأزرار", subtitle: "شرح لكل زر وإيماءة", symbol: "questionmark.circle.fill", tint: .teal)
+                            CrownOptionCard(title: L10n.tr("دليل استخدام الأزرار"), subtitle: L10n.isEnglish ? "Buttons & Gestures Guide" : "شرح لكل زر وإيماءة", symbol: "questionmark.circle.fill", tint: .teal)
                         }
                         .buttonStyle(.plain)
                         .padding(.top, 2)
@@ -887,7 +900,7 @@ struct CrownOptionsView: View {
             }
             .padding(.horizontal, 8)
             .background(Color.black.ignoresSafeArea())
-            .environment(\.layoutDirection, .rightToLeft)
+            .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
             .toolbar(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -905,7 +918,6 @@ struct CrownOptionsView: View {
                 }
             }
         }
-        .environment(\.layoutDirection, .leftToRight)
         .preferredColorScheme(.dark)
     }
 
@@ -920,12 +932,12 @@ struct CrownOptionsView: View {
                 .fadhkuruniGlass(radius: 15)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("إغلاق الخيارات")
+        .accessibilityLabel(L10n.tr("إغلاق الخيارات"))
     }
 
     private var progressSummary: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(sync.currentZekr.isEmpty ? "اختر ذكراً من القائمة" : sync.currentZekr)
+            Text(sync.currentZekr.isEmpty ? L10n.tr("اختر ذكراً من القائمة") : L10n.zekrTitle(sync.currentZekr))
                 .font(.headline)
                 .foregroundStyle(.white)
                 .lineLimit(2)
@@ -1015,17 +1027,17 @@ struct WatchSetTargetView: View {
                     .minimumScaleFactor(0.65)
                     .foregroundStyle(.orange)
                     .frame(maxWidth: .infinity)
-                    .accessibilityLabel("الهدف \(currentTarget) مرة")
+                    .accessibilityLabel("\(L10n.tr("الهدف")) \(currentTarget) \(L10n.tr("مرة"))")
                 HStack(spacing: 12) {
-                    targetAdjustment(symbol: "minus", label: "إنقاص الهدف", disabled: currentTarget <= 1) {
+                    targetAdjustment(symbol: "minus", label: L10n.isEnglish ? "Decrease Target" : "إنقاص الهدف", disabled: currentTarget <= 1) {
                         currentTarget = max(1, currentTarget - (currentTarget > 10 ? 10 : 1))
                     }
-                    targetAdjustment(symbol: "plus", label: "زيادة الهدف", disabled: currentTarget >= 10000) {
+                    targetAdjustment(symbol: "plus", label: L10n.isEnglish ? "Increase Target" : "زيادة الهدف", disabled: currentTarget >= 10000) {
                         currentTarget = min(10000, currentTarget + 10)
                     }
                 }
                 .environment(\.layoutDirection, .leftToRight)
-                Text("أهداف سريعة")
+                Text(L10n.isEnglish ? "Quick Targets" : "أهداف سريعة")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 WatchTargetPresets(selection: $currentTarget)
@@ -1034,7 +1046,7 @@ struct WatchSetTargetView: View {
                     WKInterfaceDevice.current().play(.success)
                     isPresented = false
                 } label: {
-                    Text("حفظ الهدف")
+                    Text(L10n.isEnglish ? "Save Target" : "حفظ الهدف")
                         .font(.system(size: 14, weight: .semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -1046,8 +1058,8 @@ struct WatchSetTargetView: View {
             .padding(.horizontal, 8)
             .padding(.bottom, 8)
         }
-        .navigationTitle("الهدف")
-        .environment(\.layoutDirection, .rightToLeft)
+        .navigationTitle(L10n.tr("الهدف"))
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
         .onAppear {
             currentTarget = min(10000, max(1, sync.target))
             isTargetCrownFocused = true
@@ -1088,12 +1100,12 @@ struct WatchSelectZekrView: View {
             NavigationLink {
                 WatchAddZekrView(sync: sync, isPresented: $isPresented)
             } label: {
-                Label("إضافة ذكر جديد", systemImage: "plus.circle.fill")
+                Label(L10n.tr("إضافة ذكر جديد"), systemImage: "plus.circle.fill")
                     .font(.headline)
                     .foregroundStyle(.green)
                     .padding(.vertical, 4)
             }
-            .accessibilityHint("أضف نص الذكر وحدد هدفه واحفظه على الساعة والآيفون")
+            .accessibilityHint(L10n.isEnglish ? "Add custom Dhikr and set target" : "أضف نص الذكر وحدد هدفه واحفظه على الساعة والآيفون")
 
             ForEach(sync.azkarList) { item in
                 Button {
@@ -1103,17 +1115,17 @@ struct WatchSelectZekrView: View {
                 } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(item.title)
+                            Text(L10n.zekrTitle(item.title))
                                 .font(.headline)
                                 .foregroundColor(sync.currentZekr == item.title ? .green : .primary)
                             HStack(spacing: 6) {
-                                Text("المنجز: \(item.count)")
+                                Text("\(L10n.isEnglish ? "Count" : "المنجز"): \(item.count)")
                                     .font(.caption2.bold())
                                     .foregroundColor(.green)
                                 Text("•")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
-                                Text("الهدف: \(item.defaultTarget)")
+                                Text("\(L10n.isEnglish ? "Target" : "الهدف"): \(item.defaultTarget)")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
@@ -1128,8 +1140,8 @@ struct WatchSelectZekrView: View {
                 }
             }
         }
-        .navigationTitle("نوع الذكر")
-        .environment(\.layoutDirection, .rightToLeft)
+        .navigationTitle(L10n.tr("الأذكار"))
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
     }
 }
 
@@ -1152,9 +1164,9 @@ private struct WatchResetConfirmationView: View {
                     .foregroundStyle(.white.opacity(0.85))
                     .frame(width: 42, height: 42)
                     .fadhkuruniGlass(radius: 21)
-                Text("تصفير العداد؟")
+                Text(L10n.tr("تصفير العداد؟"))
                     .font(.system(size: 17, weight: .semibold))
-                Text("سيعود عداد الذكر الحالي إلى الصفر")
+                Text(L10n.isEnglish ? "Current Dhikr count will reset to 0" : "سيعود عداد الذكر الحالي إلى الصفر")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -1165,19 +1177,19 @@ private struct WatchResetConfirmationView: View {
                     onConfirm()
                     dismiss()
                 } label: {
-                    Text("تصفير")
+                    Text(L10n.tr("تصفير"))
                         .frame(maxWidth: .infinity, minHeight: 42)
                         .foregroundStyle(coral)
                         .fadhkuruniGlass(tint: coral, radius: 15)
                 }
                 .disabled(didConfirm)
                 Button { dismiss() } label: {
-                    Text("رجوع")
+                    Text(L10n.tr("رجوع"))
                         .frame(maxWidth: .infinity, minHeight: 42)
                         .foregroundStyle(.white)
                         .fadhkuruniGlass(radius: 15)
                 }
-                .accessibilityHint("إلغاء التصفير والاحتفاظ بالعدد")
+                .accessibilityHint(L10n.isEnglish ? "Cancel reset and keep count" : "إلغاء التصفير والاحتفاظ بالعدد")
             }
             .font(.system(size: 15, weight: .semibold))
             .buttonStyle(.plain)
@@ -1185,7 +1197,7 @@ private struct WatchResetConfirmationView: View {
             .padding(.vertical, 6)
         }
         .background(Color.black.ignoresSafeArea())
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
         .preferredColorScheme(.dark)
     }
 }

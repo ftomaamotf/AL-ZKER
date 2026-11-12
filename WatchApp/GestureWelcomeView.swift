@@ -101,7 +101,7 @@ struct WatchButtonsGuideView: View {
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .always))
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
     }
 
     @ViewBuilder
@@ -173,7 +173,7 @@ struct WatchButtonsGuideView: View {
                         WKInterfaceDevice.current().play(.success)
                         onContinue()
                     } label: {
-                        Text("فهمت، ابدأ التسبيح")
+                        Text(L10n.isEnglish ? "Start Tasbih" : "فهمت، ابدأ التسبيح")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)
@@ -187,7 +187,7 @@ struct WatchButtonsGuideView: View {
                         withAnimation { currentStep += 1 }
                         WKInterfaceDevice.current().play(.click)
                     } label: {
-                        Text("التالي →")
+                        Text(L10n.isEnglish ? "Next →" : "التالي →")
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)

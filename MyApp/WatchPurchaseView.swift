@@ -42,7 +42,7 @@ struct WatchPurchaseView: View {
             }.padding()
         }
         .navigationTitle("شراء نسخة الساعة")
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
         .task { await access.refresh(); if !access.isPurchased { await access.loadProduct() } }
     }
 }

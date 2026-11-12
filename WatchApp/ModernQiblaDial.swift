@@ -22,7 +22,8 @@ struct ModernQiblaDial: View {
                 }
                 ForEach(0..<4) { index in
                     let angle = (Double(index) * 90 - heading) * .pi / 180
-                    Text(["ش", "شرق", "ج", "غ"][index])
+                    let labels = L10n.isEnglish ? ["N", "E", "S", "W"] : ["ش", "شرق", "ج", "غ"]
+                    Text(labels[index])
                         .font(.system(size: compact ? 9 : 12, weight: .medium))
                         .foregroundStyle(index == 0 ? Color.red : Color.secondary)
                         .position(x: side / 2 + sin(angle) * side * 0.35,
@@ -36,7 +37,7 @@ struct ModernQiblaDial: View {
                         .font(.system(size: compact ? 15 : 26, weight: .semibold, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(accent)
-                    if !compact { Text("زاوية القبلة").font(.caption2).foregroundStyle(.secondary) }
+                    if !compact { Text(L10n.isEnglish ? "Qibla Angle" : "زاوية القبلة").font(.caption2).foregroundStyle(.secondary) }
                 }
                 Image(systemName: "location.north.fill")
                     .font(.system(size: compact ? 20 : 32, weight: .semibold))
@@ -50,7 +51,7 @@ struct ModernQiblaDial: View {
         .aspectRatio(1, contentMode: .fit)
         .environment(\.layoutDirection, .leftToRight)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("زاوية القبلة \(Int(bearing)) درجة، اتجاه الجهاز \(Int(heading)) درجة")
+        .accessibilityLabel(L10n.isEnglish ? "Qibla angle \(Int(bearing))°, device heading \(Int(heading))°" : "زاوية القبلة \(Int(bearing)) درجة، اتجاه الجهاز \(Int(heading)) درجة")
     }
 }
 
@@ -59,7 +60,8 @@ struct QiblaDirectionStatus: View {
     let needle: Double
     var compact = false
     var body: some View {
-        Label(aligned ? "أنت باتجاه القبلة" : (needle >= 0 ? "اتجه يميناً" : "اتجه يساراً"),
+        let statusText = aligned ? (L10n.isEnglish ? "Facing the Qibla" : "أنت باتجاه القبلة") : (needle >= 0 ? (L10n.isEnglish ? "Turn right" : "اتجه يميناً") : (L10n.isEnglish ? "Turn left" : "اتجه يساراً"))
+        Label(statusText,
               systemImage: aligned ? "checkmark.circle.fill" : (needle >= 0 ? "arrow.turn.up.right" : "arrow.turn.up.left"))
             .font(compact ? .caption : .headline)
             .foregroundStyle(aligned ? Color.green : Color.teal)

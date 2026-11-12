@@ -203,8 +203,8 @@ struct PhoneButtonsGuideView: View {
                         }
                     } label: {
                         HStack(spacing: 6) {
-                            Text(currentStep < steps.count - 1 ? "التالي" : "ابدأ التسبيح الآن")
-                            Image(systemName: currentStep < steps.count - 1 ? "arrow.left" : "checkmark.circle.fill")
+                            Text(currentStep < steps.count - 1 ? (L10n.isEnglish ? "Next" : "التالي") : (L10n.isEnglish ? "Start Tasbih Now" : "ابدأ التسبيح الآن"))
+                            Image(systemName: currentStep < steps.count - 1 ? (L10n.isRTL ? "arrow.left" : "arrow.right") : "checkmark.circle.fill")
                         }
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.black)
@@ -222,7 +222,7 @@ struct PhoneButtonsGuideView: View {
                 .padding(.bottom, 24)
             }
         }
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, AppLanguage.shared.layoutDirection)
     }
 
     @ViewBuilder

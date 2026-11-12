@@ -13,6 +13,10 @@ struct WatchPrayerScheduleEntry: Codable, Identifiable, Hashable {
     let title: String
     let symbol: String
     let date: Date
+
+    var localizedTitle: String {
+        L10n.prayerName(id: id, arabicFallback: title)
+    }
 }
 
 public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelegate {
@@ -326,6 +330,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         // Photos travel as files, never in counter messages or their replies.
         // A saved photo plus the ledger can exceed WatchConnectivity's payload budget.
         payload["drivingLocked"] = isDrivingLocked
+        payload["languagePreference"] = AppLanguage.shared.preferenceRaw
         return payload
     }
 
@@ -636,6 +641,14 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
 
         session.transferUserInfo(payload)
         print("Phone: Enqueued reliable azkar transfer to watch (\(azkarList.count) items)")
+    }
+
+    public func syncLanguagePreference(_ preference: String) {
+        AppLanguage.shared.preferenceRaw = preference
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        try? session.updateApplicationContext(makeSnapshot())
     }
 
     public func notifyWatchPurchaseChanged() {
