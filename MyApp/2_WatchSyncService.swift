@@ -8,6 +8,13 @@ import WatchConnectivity
 import Combine
 import SwiftUI
 
+struct WatchPrayerScheduleEntry: Codable, Identifiable, Hashable {
+    let id: String
+    let title: String
+    let symbol: String
+    let date: Date
+}
+
 public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelegate {
     public static let shared = WatchSyncService()
 
@@ -158,6 +165,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         UserDefaults.standard.set(origin, forKey: "watchClockCoverOrigin")
     }
 
+
     @Published public private(set) var watchClockPhotoData = UserDefaults.standard.data(forKey: "watchClockPhotoData")
     private var watchClockPhotoTime: Double { UserDefaults.standard.double(forKey: "watchClockPhotoTime") }
     private var watchClockPhotoOrigin: String { UserDefaults.standard.string(forKey: "watchClockPhotoOrigin") ?? "" }
@@ -166,8 +174,26 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         UserDefaults.standard.set(data, forKey: "watchClockPhotoData")
         UserDefaults.standard.set(max(Date().timeIntervalSince1970, watchClockPhotoTime.nextUp), forKey: "watchClockPhotoTime")
         UserDefaults.standard.set(deviceOrigin, forKey: "watchClockPhotoOrigin")
+        // When the Watch app is open, send the compact photo immediately so the
+        // cover does not show its fallback clock while waiting for file delivery.
+        sendWatchClockPhotoImmediatelyIfReachable()
         sendWatchClockPhotoFile()
         sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
+    }
+
+    private func sendWatchClockPhotoImmediatelyIfReachable() {
+        guard WCSession.isSupported(), let data = watchClockPhotoData,
+              data.count <= 55_000 else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isReachable else { return }
+        let payload: [String: Any] = [
+            "watchClockPhotoData": data,
+            "watchClockPhotoTime": watchClockPhotoTime,
+            "watchClockPhotoOrigin": watchClockPhotoOrigin
+        ]
+        session.sendMessage(payload, replyHandler: nil) { _ in
+            // transferFile, queued below, remains the reliable offline fallback.
+        }
     }
     private func sendWatchClockPhotoFile() {
         guard WCSession.isSupported(), let data = watchClockPhotoData,
@@ -255,7 +281,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     private let currentZekrStorageKey = "fadhkuruni_current_zekr_v1"
     private let statisticsStorageKey = "fadhkuruni_statistics_v1"
     private let statisticsResetTimeKey = "fadhkuruni_statistics_reset_time_v1"
+    private let statisticsDhikrClearTimesKey = "fadhkuruni_statistics_dhikr_clear_times_v1"
     private var statisticsResetTime: Double { UserDefaults.standard.double(forKey: statisticsResetTimeKey) }
+    private var statisticsDhikrClearTimes: [String: Double] = [:]
 
     private let revisionTimeKey = "fadhkuruni_sync_revision_time"
     private let revisionOriginKey = "fadhkuruni_sync_revision_origin"
@@ -283,7 +311,9 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         }
         payload["ledgerV2"] = try? JSONEncoder().encode(ledger)
         payload["statisticsV1"] = try? JSONEncoder().encode(statistics)
+        payload["watchPrayerTimesV1"] = try? JSONEncoder().encode(PrayerTimesManager.shared.times.map { WatchPrayerScheduleEntry(id: $0.id, title: $0.title, symbol: $0.symbol, date: $0.date) })
         payload["statisticsResetTime"] = statisticsResetTime
+        payload["statisticsDhikrClearTimesV1"] = try? JSONEncoder().encode(statisticsDhikrClearTimes)
         payload["watchMinusVisible"] = showsDecrementButton
         payload["watchMinusTime"] = minusTime
         payload["watchMinusOrigin"] = minusOrigin
@@ -304,6 +334,10 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         if let data = UserDefaults.standard.data(forKey: statisticsStorageKey),
            let saved = try? JSONDecoder().decode(DhikrStatisticsLedger.self, from: data) {
             statistics = saved
+        }
+        if let data = UserDefaults.standard.data(forKey: statisticsDhikrClearTimesKey),
+           let saved = try? JSONDecoder().decode([String: Double].self, from: data) {
+            statisticsDhikrClearTimes = saved
         }
         loadSavedAzkar()
         if let data = UserDefaults.standard.data(forKey: ledgerKey), let saved = try? JSONDecoder().decode(DhikrLedger.self, from: data), saved.isValid {
@@ -331,6 +365,21 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         let stamp = max(Date().timeIntervalSince1970, statisticsResetTime.nextUp)
         UserDefaults.standard.set(stamp, forKey: statisticsResetTimeKey)
         persistStatistics()
+        sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
+    }
+
+    /// Clears the detailed statistics for one chosen dhikr only. The matching
+    /// clear stamp tells the Watch to discard its old copy as well.
+    public func clearStatistics(for title: String) {
+        let key = DhikrText.key(title)
+        guard !key.isEmpty else { return }
+        statistics.clear(dhikrKey: key)
+        statisticsDhikrClearTimes[key] = max(
+            Date().timeIntervalSince1970,
+            (statisticsDhikrClearTimes[key] ?? 0).nextUp
+        )
+        persistStatistics()
+        persistDhikrStatisticsClearTimes()
         sendSyncPayload(count: currentCount, zekr: currentZekr, target: target)
     }
 
@@ -633,6 +682,24 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         requestLatestStateFromPeer()
     }
 
+    /// Publishes the latest prayer schedule independently of a counter change.
+    /// Prayer times may change after a location refresh, while the dhikr counter
+    /// stays unchanged; in that case the Watch still needs a fresh snapshot.
+    public func publishPrayerTimesToWatch() {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else {
+            session.activate()
+            return
+        }
+        let payload = makeSnapshot()
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil, errorHandler: nil)
+        }
+        // Retains the schedule for delivery when the Watch app is not open.
+        try? session.updateApplicationContext(payload)
+    }
+
     private var foregroundSyncRequestID: UUID?
 
     /// A visible phone also initiates a full exchange. This recovers watch taps
@@ -827,6 +894,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             if session.isReachable {
                 self.refreshSynchronization()
                 self.sendClockCoverPreference()
+                self.sendWatchClockPhotoImmediatelyIfReachable()
             }
         }
     }
@@ -921,12 +989,25 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
             statistics = DhikrStatisticsLedger()
             persistStatistics()
         }
+        var newlyClearedDhikrKeys = Set<String>()
+        if let data = payload["statisticsDhikrClearTimesV1"] as? Data,
+           let remoteClearTimes = try? JSONDecoder().decode([String: Double].self, from: data) {
+            for (key, stamp) in remoteClearTimes where stamp > (statisticsDhikrClearTimes[key] ?? 0) {
+                statisticsDhikrClearTimes[key] = stamp
+                newlyClearedDhikrKeys.insert(key)
+            }
+            if !newlyClearedDhikrKeys.isEmpty { persistDhikrStatisticsClearTimes() }
+        }
         if remoteResetTime >= statisticsResetTime,
            let data = payload["statisticsV1"] as? Data,
            let remoteStatistics = try? JSONDecoder().decode(DhikrStatisticsLedger.self, from: data) {
             let beforeStatistics = statistics
             statistics.merge(remoteStatistics)
             if statistics != beforeStatistics { persistStatistics() }
+        }
+        if !newlyClearedDhikrKeys.isEmpty {
+            for key in newlyClearedDhikrKeys { statistics.clear(dhikrKey: key) }
+            persistStatistics()
         }
 
         guard let data = payload["ledgerV2"] as? Data,
@@ -965,6 +1046,12 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
     private func persistStatistics() {
         if let data = try? JSONEncoder().encode(statistics) {
             UserDefaults.standard.set(data, forKey: statisticsStorageKey)
+        }
+    }
+
+    private func persistDhikrStatisticsClearTimes() {
+        if let data = try? JSONEncoder().encode(statisticsDhikrClearTimes) {
+            UserDefaults.standard.set(data, forKey: statisticsDhikrClearTimesKey)
         }
     }
 

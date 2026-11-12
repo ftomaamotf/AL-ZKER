@@ -15,8 +15,8 @@ enum PrayerAlertMode: String, CaseIterable {
         case .none: "لا يوجد"
         case .silent: "إشعار صامت"
         case .system: "الصوت الافتراضي"
-        case .builtIn: "أذان مدمج"
-        case .custom: "أذان خاص"
+        case .builtIn: "نغمة الصلاة"
+        case .custom: "نغمة محفوظة سابقاً"
         }
     }
 }
@@ -26,26 +26,20 @@ struct BuiltInAdhan: Identifiable, Hashable, Sendable {
     let title: String
     let subtitle: String
     let fileName: String
-    let fullFileName: String
+    let toneID: Int
 
     nonisolated static let all: [BuiltInAdhan] = [
-        .init(id: "long-tone", title: "رنة طويلة", subtitle: "رنة تنبيه للصلاة (13 ثانية)", fileName: "prayer-long-tone.caf", fullFileName: "prayer-long-tone-full.m4a"),
-        .init(id: "makkah-classic", title: "مكة — الحرم المكي", subtitle: "أذان الحرم المكي الشريف (كامل 3:17 د)", fileName: "adhan-makkah-classic.caf", fullFileName: "adhan-makkah-classic-full.m4a"),
-        .init(id: "madinah", title: "المدينة — المسجد النبوي", subtitle: "أذان المسجد النبوي — الشيخ السريحي (كامل 4:26 د)", fileName: "adhan-madinah.caf", fullFileName: "adhan-madinah-full.m4a"),
-        .init(id: "egypt-abdulbasit", title: "مصر — الشيخ عبد الباسط", subtitle: "أذان تاريخي بصوت الشيخ عبد الباسط (كامل 3:42 د)", fileName: "adhan-egypt-abdulbasit.caf", fullFileName: "adhan-egypt-abdulbasit-full.m4a"),
-        .init(id: "quds-sham", title: "القدس والشام — تاريخي", subtitle: "تسجيل أذان شجي — صباح فخري (كامل 3:22 د)", fileName: "adhan-quds-sham.caf", fullFileName: "adhan-quds-sham-full.m4a"),
-        .init(id: "takbeerat", title: "تكبيرات العيد والحرم", subtitle: "الله أكبر كبيراً والحمد لله كثيراً (نغمة تكبيرات)", fileName: "adhan-takbeerat.caf", fullFileName: "adhan-takbeerat-full.m4a"),
-        .init(id: "makkah-maghrib", title: "مكة — أذان المغرب", subtitle: "أذان المغرب الروحاني من الحرم (كامل 5:01 د)", fileName: "adhan-makkah-maghrib.caf", fullFileName: "adhan-makkah-maghrib-full.m4a"),
-        .init(id: "casablanca", title: "الدار البيضاء — جامع الحسن الثاني", subtitle: "تسجيل الأذان المغربي الأصيل (كامل 2:55 د)", fileName: "adhan-casablanca.caf", fullFileName: "adhan-casablanca-full.m4a"),
-        .init(id: "aaqib-sweet", title: "أذان نديّ وهادئ", subtitle: "أذان عذب رخيم — القارئ عاقب عزيز (كامل 1:49 د)", fileName: "adhan-aaqib-sweet.caf", fullFileName: "adhan-aaqib-sweet-full.m4a"),
-        .init(id: "calm", title: "أذان السكينة", subtitle: "نغمة أذان هادئة جداً وواضحة (كامل 2:54 د)", fileName: "adhan-calm.caf", fullFileName: "adhan-calm-full.m4a"),
-        .init(id: "short", title: "أذان مختصر للتنبيه", subtitle: "خيار قصير للتنبيه السريع (45 ثانية)", fileName: "adhan-short.caf", fullFileName: "adhan-short-full.m4a")
+        .init(id: "dawn", title: "ندى الفجر", subtitle: "نغمة دافئة وهادئة", fileName: "fadhkuruni-prayer-dawn-v2.wav", toneID: 7),
+        .init(id: "glass", title: "بلورة السكينة", subtitle: "رنين بلوري واضح", fileName: "fadhkuruni-prayer-glass-v2.wav", toneID: 3),
+        .init(id: "harp", title: "وتر مطمئن", subtitle: "نغمة روحانية ناعمة", fileName: "fadhkuruni-prayer-harp-v2.wav", toneID: 6),
+        .init(id: "soft", title: "جرس هادئ", subtitle: "تنبيه منخفض ولطيف", fileName: "fadhkuruni-prayer-soft-v2.wav", toneID: 2),
+        .init(id: "drop", title: "قطرة نور", subtitle: "نغمة قصيرة جداً", fileName: "fadhkuruni-prayer-drop-v2.wav", toneID: 5)
     ]
 
     private static let preferencePrefix = "fadhkuruni_prayer_builtin_adhan_"
 
     static func selected(for prayerID: String) -> BuiltInAdhan {
-        let selectedID = UserDefaults.standard.string(forKey: preferencePrefix + prayerID) ?? "long-tone"
+        let selectedID = UserDefaults.standard.string(forKey: preferencePrefix + prayerID) ?? "dawn"
         return all.first(where: { $0.id == selectedID }) ?? all[0]
     }
 
@@ -66,7 +60,7 @@ enum PrayerAlertPreference {
         let defaults = UserDefaults.standard
         let migrationKey = "fadhkuruni_long_prayer_tone_configured_v1"
         guard !defaults.bool(forKey: migrationKey),
-              let tone = BuiltInAdhan.all.first(where: { $0.id == "long-tone" }) else { return }
+              let tone = BuiltInAdhan.all.first(where: { $0.id == "dawn" }) else { return }
         for prayerID in ["fajr", "dhuhr", "asr", "maghrib", "isha"] {
             BuiltInAdhan.select(tone, for: prayerID)
             set(.builtIn, for: prayerID)
@@ -78,6 +72,12 @@ enum PrayerAlertPreference {
     static func mode(for prayerID: String) -> PrayerAlertMode {
         guard let value = UserDefaults.standard.string(forKey: prefix + prayerID),
               let mode = PrayerAlertMode(rawValue: value) else { return .builtIn }
+        // الصوت الخاص لم يعد خياراً في التطبيق. نحول أي اختيار قديم
+        // تلقائياً إلى إحدى النغمات الخمس الجديدة كي لا يتعطل التنبيه.
+        if mode == .custom {
+            set(.builtIn, for: prayerID)
+            return .builtIn
+        }
         return mode
     }
 
@@ -155,19 +155,11 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
 
     func playBuiltInAdhan(_ adhan: BuiltInAdhan, full: Bool = false) {
         stopPlayback()
-        let targetName = full ? adhan.fullFileName : adhan.fileName
-        let nsTarget = targetName as NSString
-        let base = nsTarget.deletingPathExtension
-        let ext = nsTarget.pathExtension
-        let libraryURL = Self.soundsDirectory.appendingPathComponent(targetName)
-        let fallbackLibraryURL = Self.soundsDirectory.appendingPathComponent(adhan.fileName)
-
-        guard let url = Bundle.main.url(forResource: targetName, withExtension: nil)
-            ?? Bundle.main.url(forResource: base, withExtension: ext)
-            ?? Bundle.main.url(forResource: adhan.fileName, withExtension: nil)
-            ?? (FileManager.default.fileExists(atPath: libraryURL.path) ? libraryURL : nil)
-            ?? (FileManager.default.fileExists(atPath: fallbackLibraryURL.path) ? fallbackLibraryURL : nil) else {
-            message = "تعذر العثور على ملف الأذان. أعد تثبيت التطبيق ثم جرّب مرة أخرى."
+        Self.ensureBuiltInSoundsInLibraryDirectory()
+        let url = Self.bundledToneURL(named: adhan.fileName)
+            ?? Self.soundsDirectory.appendingPathComponent(adhan.fileName)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            message = "تعذر العثور على النغمة. أعد فتح التطبيق ثم جرّب مرة أخرى."
             return
         }
         do {
@@ -182,7 +174,7 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
         }
     }
 
-    /// تشغيل الأذان المختار للصلاة كاملاً
+    /// تشغيل نغمة الصلاة المختارة.
     func playFullAdhan(for prayerID: String) {
         let alertMode = PrayerAlertPreference.mode(for: prayerID)
         switch alertMode {
@@ -190,13 +182,13 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
             return
         case .system, .builtIn:
             let adhan = BuiltInAdhan.selected(for: prayerID)
-            playBuiltInAdhan(adhan, full: true)
+            playBuiltInAdhan(adhan)
         case .custom:
             if hasRecording(for: prayerID) {
                 playRecording(for: prayerID)
             } else {
                 let adhan = BuiltInAdhan.selected(for: prayerID)
-                playBuiltInAdhan(adhan, full: true)
+                playBuiltInAdhan(adhan)
             }
         }
     }
@@ -226,6 +218,7 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
             
             // تحويل وضبط الصوت إلى صيغة متوافقة تماماً مع إشعارات نظام iOS بحد أقصى 29.5 ثانية
             try Self.convertToNotificationCAF(sourceURL: sourceURL, destinationURL: destination)
+            Self.makeAvailableForLockedNotification(destination)
             
             message = "تمت إضافة الصوت بنجاح وضبطه ليعمل مع إشعارات الآيفون."
             PrayerAlertPreference.set(.custom, for: prayerID)
@@ -263,7 +256,7 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
         }
     }
 
-    func scheduleTestNotification(for prayerID: String, title: String) {
+    func scheduleTestNotification(for prayerID: String, title: String, after delay: TimeInterval = 5) {
         let center = UNUserNotificationCenter.current()
         let content = UNMutableNotificationContent()
         content.title = "حان وقت صلاة \(title)"
@@ -284,17 +277,28 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
         case .custom:
             content.sound = Self.notificationSound(for: prayerID) ?? .default
         }
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, delay), repeats: false)
         let request = UNNotificationRequest(identifier: "fadhkuruni.test.prayer.\(prayerID)", content: content, trigger: trigger)
         center.add(request) { [weak self] error in
             Task { @MainActor [weak self] in
                 if error == nil {
-                    self?.message = "تمت جدولة إشعار التجربة بنجاح! سيصلك التنبيه خلال 5 ثوانٍ لسماع الصوت."
+                    self?.message = "تمت جدولة إشعار التجربة بنجاح! سيصلك التنبيه خلال \(Int(max(1, delay))) ثوانٍ لسماع الصوت."
                 } else {
                     self?.message = "تعذر إرسال التجربة، تأكد من تفعيل إذن الإشعارات."
                 }
             }
         }
+    }
+
+    func scheduleDefaultSoundTest(after delay: TimeInterval = 20) {
+        let content = UNMutableNotificationContent()
+        content.title = "تجربة صوت الآيفون"
+        content.body = "هذا هو صوت إشعارات النظام الافتراضي."
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, delay), repeats: false)
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: "fadhkuruni.test.default-sound", content: content, trigger: trigger)
+        )
     }
 
     func clearMessage() { message = nil }
@@ -311,6 +315,9 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
     }
 
     func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
+        if flag, let prayerID = recordingPrayerID {
+            Self.makeAvailableForLockedNotification(Self.recordingURL(for: prayerID))
+        }
         self.recorder = nil
         recordingPrayerID = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -364,24 +371,53 @@ final class PrayerAdhanRecorder: NSObject, ObservableObject, @preconcurrency AVA
         supportedExtensions.map { soundsDirectory.appendingPathComponent("adhan-\(prayerID).\($0)") }
     }
 
-    /// نسخ جميع أصوات الأذان والتنبيهات المدمجة إلى مجلد Library/Sounds داخل الحاوية
-    /// لضمان تعرف نظام iOS (SpringBoard) فوراً على ملف الصوت وتشغيله عند وصول الإشعار والشاشة مقفلة
+    /// Generates a small, original notification-tone library directly on the
+    /// device. The files are short and available while the device is locked.
     public nonisolated static func ensureBuiltInSoundsInLibraryDirectory() {
         let fileManager = FileManager.default
         let soundsDir = soundsDirectory
         try? fileManager.createDirectory(at: soundsDir, withIntermediateDirectories: true)
 
-        for adhan in BuiltInAdhan.all {
-            for ext in ["caf", "wav"] {
-                let filename = (ext == "caf") ? adhan.fileName : adhan.fileName.replacingOccurrences(of: ".caf", with: ".wav")
-                let destURL = soundsDir.appendingPathComponent(filename)
-                let base = (filename as NSString).deletingPathExtension
-                let bundleURL = Bundle.main.url(forResource: base, withExtension: ext)
-                    ?? Bundle.main.url(forResource: filename, withExtension: nil)
-                if let bundleURL, !fileManager.fileExists(atPath: destURL.path) {
-                    try? fileManager.copyItem(at: bundleURL, to: destURL)
-                }
+        let legacyNames = [
+            "prayer-long-tone", "adhan-makkah-classic", "adhan-madinah",
+            "adhan-egypt-abdulbasit", "adhan-quds-sham", "adhan-takbeerat",
+            "adhan-makkah-maghrib", "adhan-casablanca", "adhan-aaqib-sweet",
+            "adhan-calm", "adhan-short"
+        ]
+        for name in legacyNames {
+            for extensionName in ["caf", "wav"] {
+                try? fileManager.removeItem(at: soundsDir.appendingPathComponent("\(name).\(extensionName)"))
             }
         }
+
+        let toneVersionKey = "fadhkuruni_prayer_tones_version"
+        let needsRefresh = UserDefaults.standard.integer(forKey: toneVersionKey) < 3
+        for adhan in BuiltInAdhan.all {
+            let destination = soundsDir.appendingPathComponent(adhan.fileName)
+            if needsRefresh || !fileManager.fileExists(atPath: destination.path) {
+                if let bundledTone = bundledToneURL(named: adhan.fileName) {
+                    try? fileManager.removeItem(at: destination)
+                    try? fileManager.copyItem(at: bundledTone, to: destination)
+                } else {
+                    try? SoundSynthesizer.makeWav(for: adhan.toneID).write(to: destination, options: .atomic)
+                }
+            }
+            makeAvailableForLockedNotification(destination)
+        }
+        UserDefaults.standard.set(3, forKey: toneVersionKey)
+    }
+
+    private nonisolated static func bundledToneURL(named fileName: String) -> URL? {
+        let name = (fileName as NSString).deletingPathExtension
+        let extensionName = (fileName as NSString).pathExtension
+        return Bundle.main.url(forResource: name, withExtension: extensionName, subdirectory: "PrayerAdhanSounds")
+            ?? Bundle.main.url(forResource: name, withExtension: extensionName)
+    }
+
+    private nonisolated static func makeAvailableForLockedNotification(_ url: URL) {
+        try? FileManager.default.setAttributes(
+            [.protectionKey: FileProtectionType.none],
+            ofItemAtPath: url.path
+        )
     }
 }

@@ -7,10 +7,16 @@ import Foundation
 final class DrivingModeManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     static let shared = DrivingModeManager()
 
-    /// 20 km/h, expressed in Core Location's metres per second.
+    /// Keep the App Store safety threshold at 20 km/h. Developer builds use 40 km/h for local testing only.
+    #if DEBUG
+    private let lockSpeed: CLLocationSpeed = 40.0 / 3.6
+    /// A small lower threshold prevents GPS speed jitter from repeatedly locking and unlocking.
+    private let unlockSpeed: CLLocationSpeed = 38.0 / 3.6
+    #else
     private let lockSpeed: CLLocationSpeed = 20.0 / 3.6
     /// A small lower threshold prevents GPS speed jitter from repeatedly locking and unlocking.
     private let unlockSpeed: CLLocationSpeed = 18.0 / 3.6
+    #endif
 
     @Published private(set) var isDriving = false
     private let locationManager = CLLocationManager()

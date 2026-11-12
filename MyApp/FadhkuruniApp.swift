@@ -9,6 +9,25 @@ struct FadhkuruniApp: App {
         // ضمان تفعيل مستلم الإشعارات فور إقلاع التطبيق لعرض البانر وتشغيل الصوت حتى والتطبيق مفتوح
         _ = NotificationManager.shared
         PrayerAdhanRecorder.ensureBuiltInSoundsInLibraryDirectory()
+        #if DEBUG
+        // Used only when launching from Xcode with the test argument. It lets
+        // us verify the selected prayer sound on the actual iPhone.
+        if ProcessInfo.processInfo.arguments.contains("--prayer-sound-test") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                let delayed = ProcessInfo.processInfo.arguments.contains("--prayer-sound-test-delayed")
+                PrayerAdhanRecorder.shared.scheduleTestNotification(
+                    for: "fajr",
+                    title: "الفجر",
+                    after: delayed ? 20 : 5
+                )
+            }
+        }
+        if ProcessInfo.processInfo.arguments.contains("--default-sound-test") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                PrayerAdhanRecorder.shared.scheduleDefaultSoundTest()
+            }
+        }
+        #endif
     }
 
     var body: some Scene {
@@ -20,6 +39,7 @@ struct FadhkuruniApp: App {
                     DrivingModeManager.shared.start()
                     DhikrSummaryNotificationScheduler.shared.refresh()
                     PrayerTimesManager.shared.refresh()
+                    WatchSyncService.shared.publishPrayerTimesToWatch()
                     IconBadgeManager.shared.update(count: WatchSyncService.shared.currentCount)
                     TapFeedback.shared.prepare()
                     WatchPurchaseAccess.shared.onPurchaseChanged = { WatchSyncService.shared.notifyWatchPurchaseChanged() }
@@ -42,6 +62,7 @@ struct FadhkuruniApp: App {
                         DrivingModeManager.shared.start()
                         DhikrSummaryNotificationScheduler.shared.refresh()
                         PrayerTimesManager.shared.refresh()
+                        WatchSyncService.shared.publishPrayerTimesToWatch()
                         Task { await WatchPurchaseAccess.shared.refresh() }
                     } else if phase == .background {
                         DhikrSummaryNotificationScheduler.shared.refreshDailySummaryReminder()

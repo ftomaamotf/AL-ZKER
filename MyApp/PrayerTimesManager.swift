@@ -68,6 +68,7 @@ final class PrayerTimesManager: NSObject, ObservableObject, CLLocationManagerDel
         }
         times = PrayerTimeCalculator.times(for: Date(), coordinate: lastCoordinate)
         saveCalculatedPrayerMinutes(from: times)
+        WatchSyncService.shared.publishPrayerTimesToWatch()
         statusMessage = "تم تطبيق التعديلات اليدوية"
     }
 

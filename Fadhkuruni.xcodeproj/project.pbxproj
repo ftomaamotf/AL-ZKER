@@ -345,7 +345,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 52;
+				CURRENT_PROJECT_VERSION = 53;
 				DEVELOPMENT_TEAM = L759HKG8U7;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
@@ -361,7 +361,7 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "فَاذْكُرُونِي";
+				INFOPLIST_KEY_CFBundleDisplayName = "فاذكروني";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "يستخدم فَاذْكُرُونِي بصمة الوجه أو بصمة الإصبع لتأكيد حذف الإحصاءات.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "يستخدم فَاذْكُرُونِي موقعك لتحديد اتجاه القبلة، وضبط ملخص الذكر بعد المغرب، وإيقاف التطبيق أثناء القيادة.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "يستخدم فَاذْكُرُونِي الميكروفون لتسجيل أذانك الخاص لتنبيهات الصلاة.";
@@ -399,7 +399,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 52;
+				CURRENT_PROJECT_VERSION = 53;
 				DEVELOPMENT_TEAM = L759HKG8U7;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
@@ -415,7 +415,7 @@
 				ENABLE_RESOURCE_ACCESS_USB = NO;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "فَاذْكُرُونِي";
+				INFOPLIST_KEY_CFBundleDisplayName = "فاذكروني";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "يستخدم فَاذْكُرُونِي بصمة الوجه أو بصمة الإصبع لتأكيد حذف الإحصاءات.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "يستخدم فَاذْكُرُونِي موقعك لتحديد اتجاه القبلة، وضبط ملخص الذكر بعد المغرب، وإيقاف التطبيق أثناء القيادة.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "يستخدم فَاذْكُرُونِي الميكروفون لتسجيل أذانك الخاص لتنبيهات الصلاة.";
@@ -455,12 +455,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 52;
+				CURRENT_PROJECT_VERSION = 53;
 				DEVELOPMENT_TEAM = L759HKG8U7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "WatchApp-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "فَاذْكُرُونِي";
+				INFOPLIST_KEY_CFBundleDisplayName = "فاذكروني";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKBackgroundModes = mindfulness;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.abduallhajmi.fadhkuruni;
@@ -488,12 +488,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 52;
+				CURRENT_PROJECT_VERSION = 53;
 				DEVELOPMENT_TEAM = L759HKG8U7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "WatchApp-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "فَاذْكُرُونِي";
+				INFOPLIST_KEY_CFBundleDisplayName = "فاذكروني";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKBackgroundModes = mindfulness;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.abduallhajmi.fadhkuruni;

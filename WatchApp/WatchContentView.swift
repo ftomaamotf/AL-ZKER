@@ -24,13 +24,12 @@ struct WatchContentView: View {
     @State private var showScreenResetConfirmation = false
     @FocusState private var isCrownFocused: Bool
     @State private var isQiblaActive: Bool = false
+    @State private var isPrayerTimesActive: Bool = false
     @ObservedObject private var qibla = QiblaManager.shared
 
     // توقيت آخر تسبيحة لإلغاء وتفادي أي هزة ثانية متكررة عند تحريك الأصابع
     @State private var lastIncrementTime: Date = .distantPast
-
-    // تفاعل حركة وانضغاط زر الحجب تحت الإصبع أثناء الضغط المطول
-    @State private var isPressingCover = false
+    @State private var isCounterPressing = false
 
     var body: some View {
         VStack(spacing: 2) {
@@ -42,6 +41,7 @@ struct WatchContentView: View {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                             isQiblaActive.toggle()
                             if isQiblaActive {
+                                isPrayerTimesActive = false
                                 QiblaManager.shared.start()
                             } else {
                                 QiblaManager.shared.stop()
@@ -73,7 +73,12 @@ struct WatchContentView: View {
 
                 // عنوان الذكر / التطبيق
                 VStack(alignment: .trailing, spacing: 1) {
-                    if isQiblaActive {
+                    if isPrayerTimesActive {
+                        Text("مواقيت الصلاة")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                    } else if isQiblaActive {
                         Text("اتجاه القبلة")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundStyle(.primary)
@@ -96,16 +101,38 @@ struct WatchContentView: View {
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
-
-                        Text("فَاذْكُرُونِي")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color.secondary)
-                            .lineLimit(1)
                     }
                 }
                 .offset(y: (sync.showsWatchClockCover && !isQiblaActive) ? -38 : -46)
                 .padding(.bottom, -14)
                 .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sync.showsWatchClockCover)
+
+                // الزاوية اليسرى: مواقيت الصلاة.
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        isPrayerTimesActive.toggle()
+                        if isPrayerTimesActive {
+                            isQiblaActive = false
+                            QiblaManager.shared.stop()
+                        }
+                    }
+                    sync.requestSyncFromPhone()
+                    WKInterfaceDevice.current().play(.click)
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(isPrayerTimesActive ? Color.green : Color.green.opacity(0.18))
+                            .frame(width: 32, height: 32)
+                            .overlay(Circle().strokeBorder(Color.green.opacity(0.45), lineWidth: 1))
+                        Image(systemName: "moon.stars.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(isPrayerTimesActive ? Color.black : Color.green)
+                    }
+                    .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .offset(y: -24)
+                .accessibilityLabel(isPrayerTimesActive ? "العودة للعدّاد" : "مواقيت الصلاة")
 
             }
             .padding(.horizontal, 4)
@@ -113,7 +140,9 @@ struct WatchContentView: View {
 
             // 2. المنطقة المركزية: دائرة العداد المتطابقة مع الآيفون أو بوصلة القبلة
             ZStack {
-                if isQiblaActive {
+                if isPrayerTimesActive {
+                    watchPrayerCircleView
+                } else if isQiblaActive {
                     watchQiblaCircleView
                 } else {
                     watchCounterCircleView
@@ -138,17 +167,15 @@ struct WatchContentView: View {
             }
         }
         .padding(.horizontal, 8)
-        // زر غير مرئي يعيّن الإيماءة كإجراء أساسي بعد إخفاء زر الزيادة الظاهر.
-        .overlay(alignment: .bottomTrailing) {
-            Button {
-                guard !isQiblaActive else { return }
-                incrementCount()
-            } label: {
-                Color.clear.frame(width: 1, height: 1)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // The background receives only empty-screen taps while an auxiliary
+        // screen is visible. It never competes with the counter's own Button.
+        .background {
+            if isQiblaActive || isPrayerTimesActive {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { returnToCounter() }
             }
-            .buttonStyle(.plain)
-            .enableDoubleTapGesture()
-            .accessibilityLabel("تسبيح بالإيماءة")
         }
         .environment(\.layoutDirection, .rightToLeft)
         // ربط تدوير زر التاج (Digital Crown) لإظهار الخيارات
@@ -220,19 +247,32 @@ struct WatchContentView: View {
     // MARK: - دائرة العداد المتطابقة مع الآيفون
     private var watchCounterCircleView: some View {
         ZStack {
-            // حلقة المسار الخلفية
-            Circle()
-                .stroke(Color.green.opacity(0.14), lineWidth: 6)
+            Group {
+                // حلقة المسار الخلفية
+                Circle()
+                    .stroke(Color.green.opacity(0.14), lineWidth: 6)
 
-            // حلقة التقدم المضيئة
+                // حلقة التقدم المضيئة
+                Circle()
+                    .trim(from: 0, to: sync.target > 0 ? min(1, max(0, Double(sync.currentCount) / Double(sync.target))) : 0)
+                    .stroke(
+                        LinearGradient(colors: [.green.opacity(0.65), .mint], startPoint: .bottomLeading, endPoint: .topTrailing),
+                        style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sync.currentCount)
+            }
+
+            // A complete luminous ring appears around the existing edge on
+            // every tasbih, without shrinking the circle or the counter text.
             Circle()
-                .trim(from: 0, to: sync.target > 0 ? min(1, max(0, Double(sync.currentCount) / Double(sync.target))) : 0)
                 .stroke(
-                    LinearGradient(colors: [.green.opacity(0.65), .mint], startPoint: .bottomLeading, endPoint: .topTrailing),
-                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                    LinearGradient(colors: [.white, .mint, .green], startPoint: .leading, endPoint: .trailing),
+                    style: StrokeStyle(lineWidth: 4, lineCap: .round)
                 )
-                .rotationEffect(.degrees(-90))
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: sync.currentCount)
+                .opacity(isCounterPressing ? 1 : 0)
+                .scaleEffect(isCounterPressing ? 1.02 : 0.98)
+                .shadow(color: .mint.opacity(isCounterPressing ? 0.9 : 0), radius: 5)
 
             if sync.showsWatchClockCover {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -259,12 +299,28 @@ struct WatchContentView: View {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                    Text("فَاذْكُرُونِي")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Color.secondary)
+                        .lineLimit(1)
                 }
                 .padding(12)
                 .offset(y: -22)
                 .allowsHitTesting(false)
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
+
+            // The system's hand double-tap shortcut must be attached to an
+            // actual Button. Its near-transparent fill keeps the control
+            // visually invisible while retaining a reliable touch target.
+            Button(action: incrementCount) {
+                Circle().fill(Color.black.opacity(0.001))
+            }
+            .buttonStyle(.plain)
+            .frame(width: 136, height: 136)
+            .contentShape(Circle())
+            .enableDoubleTapGesture()
+            .accessibilityLabel("تسبيح بالإيماءة")
 
             if !sync.showsWatchClockCover && sync.showsDecrementButton {
                 Button { decrementCount() } label: {
@@ -302,37 +358,7 @@ struct WatchContentView: View {
         }
         .environment(\.layoutDirection, .leftToRight)
         .frame(width: 136, height: 136)
-        // حركة وانضغاط فيزيائي للدائرة تحت الإصبع أثناء الضغط المطول
-        .scaleEffect(isPressingCover ? 0.90 : 1.0)
-        .offset(y: isPressingCover ? 3.0 : 0)
-        .shadow(color: Color.mint.opacity(isPressingCover ? 0.6 : 0), radius: isPressingCover ? 14 : 0)
-        .animation(.spring(response: 0.28, dampingFraction: 0.65), value: isPressingCover)
         .contentShape(Circle())
-        .onTapGesture {
-            incrementCount()
-        }
-        .onLongPressGesture(minimumDuration: 0.45) {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) {
-                isPressingCover = false
-                sync.setWatchClockCover(!sync.showsWatchClockCover)
-            }
-            WKInterfaceDevice.current().play(.directionUp)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                WKInterfaceDevice.current().play(.click)
-            }
-        } onPressingChanged: { isPressing in
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
-                isPressingCover = isPressing
-            }
-            if isPressing {
-                WKInterfaceDevice.current().play(.click)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-                    if isPressingCover {
-                        WKInterfaceDevice.current().play(.directionDown)
-                    }
-                }
-            }
-        }
     }
 
 private struct EmeraldAnalogClock: View {
@@ -361,9 +387,23 @@ private struct EmeraldAnalogClock: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 136, height: 136)
-                    .clipShape(Circle())
-                    .overlay(Circle().fill(.black.opacity(0.20)))
+                    // Keep the chosen photo large and square, inside a frosted
+                    // crystal frame that fits the counter's existing circle.
+                    .frame(width: 118, height: 118)
+                    .clipShape(RoundedRectangle(cornerRadius: 27, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 27, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                            .opacity(0.18)
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 27, style: .continuous)
+                            .strokeBorder(
+                                LinearGradient(colors: [.white.opacity(0.92), .mint.opacity(0.45), .white.opacity(0.30)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                                lineWidth: 1.4
+                            )
+                    }
+                    .shadow(color: .mint.opacity(0.36), radius: 9, y: 3)
             } else {
                 Circle()
                     .fill(
@@ -391,7 +431,7 @@ private struct EmeraldAnalogClock: View {
                 )
                 .padding(5)
             RoundedRectangle(cornerRadius: 25, style: .continuous)
-                .fill(.white.opacity(0.23))
+                .fill(.white.opacity(photoData == nil ? 0.23 : 0.16))
                 .frame(width: 83, height: 20)
                 .rotationEffect(.degrees(-31))
                 .offset(x: -20, y: -40)
@@ -443,6 +483,79 @@ private struct EmeraldAnalogClock: View {
             .shadow(color: .black.opacity(0.28), radius: 1.5, y: 1)
     }
 }
+
+    // MARK: - مواقيت الصلاة داخل الدائرة نفسها
+    private var watchPrayerCircleView: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            let prayers = sync.prayerTimes.sorted { $0.date < $1.date }
+            let nextIndex = prayers.firstIndex { $0.date > context.date }
+            ZStack {
+                Circle().stroke(Color.green.opacity(0.14), lineWidth: 6)
+
+                if let nextIndex {
+                    let next = prayers[nextIndex]
+                    let previousDate = nextIndex > 0 ? prayers[nextIndex - 1].date : next.date.addingTimeInterval(-3 * 60 * 60)
+                    let interval = max(1, next.date.timeIntervalSince(previousDate))
+                    let elapsed = min(max(0, context.date.timeIntervalSince(previousDate)), interval)
+                    let progress = elapsed / interval
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(LinearGradient(colors: [.green.opacity(0.65), .mint], startPoint: .bottomLeading, endPoint: .topTrailing), style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+
+                    VStack(spacing: 2) {
+                        Image(systemName: next.symbol)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.mint)
+                        Text("القادمة")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Text(next.title)
+                            .font(.system(size: 17, weight: .bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.65)
+                        Text(watchPrayerRemainingText(until: next.date, from: context.date))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.green)
+                            .lineLimit(1)
+                        Text(next.date.formatted(date: .omitted, time: .shortened))
+                            .font(.system(size: 9, weight: .medium).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                } else {
+                    VStack(spacing: 5) {
+                        Image(systemName: "location.circle")
+                            .font(.system(size: 25, weight: .light))
+                            .foregroundStyle(.green)
+                        Text("تحديث المواقيت")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("افتح تطبيق الآيفون")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .frame(width: 136, height: 136)
+        }
+        .environment(\.layoutDirection, .leftToRight)
+        .contentShape(Circle())
+        .onTapGesture {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                isPrayerTimesActive = false
+            }
+            WKInterfaceDevice.current().play(.click)
+        }
+    }
+
+    private func watchPrayerRemainingText(until date: Date, from now: Date) -> String {
+        let minutes = max(1, Int((date.timeIntervalSince(now) / 60).rounded(.up)))
+        if minutes < 60 { return "باقي \(minutes) د" }
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        return remainder == 0 ? "باقي \(hours) س" : "باقي \(hours) س \(remainder) د"
+    }
 
     // MARK: - بطاقة القبلة داخل دائرة الساعة
     private var watchQiblaCircleView: some View {
@@ -619,8 +732,8 @@ private struct EmeraldAnalogClock: View {
     // MARK: - التسبيح والاهتزاز
     private func incrementCount() {
         let now = Date()
-        // إلغاء أي هزة ثانية متكررة عند تحريك الأصابع فوراً (Debounce 0.4s)
-        guard now.timeIntervalSince(lastIncrementTime) > 0.4 else {
+        // منع اللمسة المكررة غير المقصودة فقط، من دون تعطيل التسبيح السريع.
+        guard now.timeIntervalSince(lastIncrementTime) > 0.12 else {
             return
         }
         lastIncrementTime = now
@@ -629,7 +742,25 @@ private struct EmeraldAnalogClock: View {
         WatchKeepAwakeManager.shared.recordCountingActivity()
 
         guard let reachedGoal = sync.incrementCurrentZekr() else { return }
+        withAnimation(.easeOut(duration: 0.28)) {
+            isCounterPressing = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
+            withAnimation(.easeOut(duration: 0.14)) {
+                isCounterPressing = false
+            }
+        }
         TapFeedback.shared.play(goalReached: reachedGoal)
+    }
+
+    private func returnToCounter() {
+        guard isQiblaActive || isPrayerTimesActive else { return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            isQiblaActive = false
+            isPrayerTimesActive = false
+            QiblaManager.shared.stop()
+        }
+        WKInterfaceDevice.current().play(.click)
     }
 }
 

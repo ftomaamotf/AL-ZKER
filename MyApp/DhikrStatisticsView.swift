@@ -56,6 +56,7 @@ struct DhikrStatisticsView: View {
     @ObservedObject private var sync = WatchSyncService.shared
     @AppStorage("fadhkuruni_daily_statistics_goal") private var dailyGoal = 100
     @State private var selectedDhikrTitle = ""
+    @State private var dhikrStripPosition: String?
     @State private var showClearStatisticsConfirmation = false
     @State private var statisticsDeletionMessage: String?
 
@@ -77,19 +78,30 @@ struct DhikrStatisticsView: View {
                                 .background(Color.green.opacity(0.12), in: Capsule())
                         }
                         ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHStack(spacing: 9) {
+                            LazyHStack(spacing: 10) {
                                 ForEach(recordedDhikrTitles, id: \.self) { title in
                                     let isSelected = title == activeDhikrTitle
                                     Button {
-                                        selectedDhikrTitle = title
+                                        withAnimation(.snappy(duration: 0.28)) {
+                                            selectedDhikrTitle = title
+                                            dhikrStripPosition = title
+                                        }
                                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                                     } label: {
-                                        VStack(alignment: .trailing, spacing: 3) {
-                                            Text(title).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.75)
-                                            Text("\(sync.statistics.totalToday(for: title).formatted()) اليوم").font(.caption2.monospacedDigit())
+                                        VStack(alignment: .trailing, spacing: 5) {
+                                            Text(title)
+                                                .font(.caption.weight(.semibold))
+                                                .lineLimit(2)
+                                                .minimumScaleFactor(0.72)
+                                                .multilineTextAlignment(.trailing)
+                                                .frame(maxWidth: .infinity, minHeight: 32, alignment: .trailing)
+                                            Text("\(sync.statistics.totalAllTime(for: title).formatted()) إجمالي")
+                                                .font(.caption2.monospacedDigit())
+                                                .frame(maxWidth: .infinity, alignment: .trailing)
                                         }
                                         .foregroundStyle(isSelected ? Color.white : Color.primary)
-                                        .padding(.horizontal, 13).padding(.vertical, 9)
+                                        .padding(.horizontal, 14).padding(.vertical, 10)
+                                        .frame(width: 224, height: 76)
                                         .background {
                                             Capsule().fill(isSelected ? AnyShapeStyle(LinearGradient(colors: [.green, .mint], startPoint: .topLeading, endPoint: .bottomTrailing)) : AnyShapeStyle(.ultraThinMaterial))
                                         }
@@ -99,8 +111,13 @@ struct DhikrStatisticsView: View {
                                     .accessibilityLabel("عرض ملخص \(title)")
                                 }
                             }
-                            .padding(.horizontal, 2)
+                            .scrollTargetLayout()
+                            .padding(.horizontal, 4)
                         }
+                        .scrollTargetBehavior(.viewAligned)
+                        .scrollPosition(id: $dhikrStripPosition, anchor: .center)
+                        .scrollClipDisabled()
+                        .frame(height: 82)
                     }
                 }
             }
@@ -207,7 +224,14 @@ struct DhikrStatisticsView: View {
     }
 
     private var recordedDhikrTitles: [String] {
-        sync.statistics.recordedDhikrTitles(from: sync.azkarList.map(\.title))
+        let titles = sync.statistics.recordedDhikrTitles(from: sync.azkarList.map(\.title))
+        // Keep the highest lifetime count first. Equal totals retain the user's
+        // original dhikr-library order instead of jumping around.
+        return titles.enumerated().sorted { left, right in
+            let leftTotal = sync.statistics.totalAllTime(for: left.element)
+            let rightTotal = sync.statistics.totalAllTime(for: right.element)
+            return leftTotal == rightTotal ? left.offset < right.offset : leftTotal > rightTotal
+        }.map(\.element)
     }
 
     private var activeDhikrTitle: String {
@@ -218,6 +242,7 @@ struct DhikrStatisticsView: View {
         if !recordedDhikrTitles.contains(selectedDhikrTitle) {
             selectedDhikrTitle = recordedDhikrTitles.first ?? ""
         }
+        dhikrStripPosition = selectedDhikrTitle
     }
 
     private var todayComparisonText: String {

@@ -57,6 +57,16 @@ public struct DhikrStatisticsLedger: Codable, Equatable {
         dhikrCorrections[key] = perDhikr
     }
 
+    /// Filters display titles to dhikr that have at least one stored tap.
+    public func recordedDhikrTitles(from titles: [String]) -> [String] {
+        titles.filter { title in
+            let key = Self.dhikrKey(title)
+            guard !key.isEmpty else { return false }
+            return dhikrDays.values.contains { $0[key] != nil }
+                || dhikrCorrections.values.contains { $0[key] != nil }
+        }
+    }
+
     public mutating func merge(_ other: DhikrStatisticsLedger) {
         for (day, remoteSources) in other.days {
             var local = days[day] ?? [:]
@@ -76,6 +86,24 @@ public struct DhikrStatisticsLedger: Codable, Equatable {
         mergePerDhikr(&dhikrCorrections, other.dhikrCorrections)
     }
 
+    /// Removes only one dhikr's detailed history. Aggregate totals and every
+    /// other dhikr remain untouched.
+    public mutating func clear(dhikrKey: String) {
+        guard !dhikrKey.isEmpty else { return }
+        for day in Array(dhikrDays.keys) {
+            var perDhikr = dhikrDays[day] ?? [:]
+            perDhikr.removeValue(forKey: dhikrKey)
+            if perDhikr.isEmpty { dhikrDays.removeValue(forKey: day) }
+            else { dhikrDays[day] = perDhikr }
+        }
+        for day in Array(dhikrCorrections.keys) {
+            var perDhikr = dhikrCorrections[day] ?? [:]
+            perDhikr.removeValue(forKey: dhikrKey)
+            if perDhikr.isEmpty { dhikrCorrections.removeValue(forKey: day) }
+            else { dhikrCorrections[day] = perDhikr }
+        }
+    }
+
     public func total(in interval: DateInterval) -> Int {
         let increments = days.reduce(0) { partial, entry in
             guard let date = Self.date(from: entry.key), interval.contains(date) else { return partial }
@@ -88,23 +116,35 @@ public struct DhikrStatisticsLedger: Codable, Equatable {
         return max(0, increments - decrements)
     }
 
-    public func totalToday() -> Int { total(in: Self.interval(.day, offset: 0)) }
-    public func totalYesterday() -> Int { total(in: Self.interval(.day, offset: -1)) }
-    public func totalToday(for title: String) -> Int { total(for: title, in: Self.interval(.day, offset: 0)) }
-    public func totalYesterday(for title: String) -> Int { total(for: title, in: Self.interval(.day, offset: -1)) }
-    public func total(dayOffset: Int) -> Int { total(in: Self.interval(.day, offset: dayOffset)) }
-    public func total(dayOffset: Int, for title: String) -> Int { total(for: title, in: Self.interval(.day, offset: dayOffset)) }
+    /// Daily totals use the stored date key directly. Re-parsing a date through a
+    /// formatter could make adjacent days appear identical after calendar changes.
+    public func totalToday() -> Int { total(on: Date()) }
+    public func totalYesterday() -> Int { total(dayOffset: -1) }
+    public func totalToday(for title: String) -> Int { total(on: Date(), for: title) }
+    public func totalYesterday(for title: String) -> Int { total(dayOffset: -1, for: title) }
+    /// Lifetime net total for ranking the most frequently recited dhikr.
+    public func totalAllTime(for title: String) -> Int {
+        let dhikrKey = Self.dhikrKey(title)
+        guard !dhikrKey.isEmpty else { return 0 }
+        let increments = dhikrDays.values.reduce(0) { $0 + ($1[dhikrKey]?.values.reduce(0, +) ?? 0) }
+        let decrements = dhikrCorrections.values.reduce(0) { $0 + ($1[dhikrKey]?.values.reduce(0, +) ?? 0) }
+        return max(0, increments - decrements)
+    }
+    public func total(dayOffset: Int) -> Int {
+        total(on: Self.dayCalendar.date(byAdding: .day, value: dayOffset, to: Date()) ?? Date())
+    }
+    public func total(dayOffset: Int, for title: String) -> Int {
+        total(on: Self.dayCalendar.date(byAdding: .day, value: dayOffset, to: Date()) ?? Date(), for: title)
+    }
     public func total(on date: Date) -> Int {
-        let calendar = Calendar.current
-        let start = calendar.startOfDay(for: date)
-        let interval = calendar.dateInterval(of: .day, for: start) ?? DateInterval(start: start, duration: 86_400)
-        return total(in: interval)
+        let key = Self.dayKey(date)
+        return max(0, (days[key]?.values.reduce(0, +) ?? 0) - (corrections[key]?.values.reduce(0, +) ?? 0))
     }
     public func total(on date: Date, for title: String) -> Int {
-        let calendar = Calendar.current
-        let start = calendar.startOfDay(for: date)
-        let interval = calendar.dateInterval(of: .day, for: start) ?? DateInterval(start: start, duration: 86_400)
-        return total(for: title, in: interval)
+        let dhikrKey = Self.dhikrKey(title)
+        guard !dhikrKey.isEmpty else { return 0 }
+        let key = Self.dayKey(date)
+        return max(0, (dhikrDays[key]?[dhikrKey]?.values.reduce(0, +) ?? 0) - (dhikrCorrections[key]?[dhikrKey]?.values.reduce(0, +) ?? 0))
     }
     public func totalThisWeek() -> Int { total(in: Self.interval(.weekOfYear, offset: 0)) }
     public func totalLastWeek() -> Int { total(in: Self.interval(.weekOfYear, offset: -1)) }
@@ -149,9 +189,16 @@ public struct DhikrStatisticsLedger: Codable, Equatable {
 
     private static func dhikrKey(_ title: String) -> String { DhikrText.key(title) }
 
+    private static var dayCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = .current
+        return calendar
+    }
+
     private static func dayKey(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.calendar = dayCalendar
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
         formatter.dateFormat = "yyyy-MM-dd"
@@ -160,7 +207,7 @@ public struct DhikrStatisticsLedger: Codable, Equatable {
 
     private static func date(from key: String) -> Date? {
         let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.calendar = dayCalendar
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
         formatter.dateFormat = "yyyy-MM-dd"
