@@ -16,10 +16,13 @@ public final class DhikrSummariesSubscriptionAccess: ObservableObject {
     @Published public private(set) var product: Product? = nil
 
     private let trialStartDateKey = "fadhkuruni_summaries_trial_start_date_v2"
+    /// تُرسل هذه القيمة للساعة حتى لا تبقى ميزات الاشتراك متاحة من واجهتها.
+    public static let premiumFeaturesAccessKey = "fadhkuruni_premium_features_unlocked"
     private var updatesTask: Task<Void, Never>?
 
     private init() {
         ensureTrialStartDateInitialized()
+        publishPremiumFeatureAccess()
         listenForTransactionUpdates()
         Task {
             await refresh()
@@ -113,6 +116,7 @@ public final class DhikrSummariesSubscriptionAccess: ObservableObject {
             }
         }
         self.isSubscribed = active
+        publishPremiumFeatureAccess()
     }
 
     public func purchase() async -> Bool {
@@ -134,7 +138,8 @@ public final class DhikrSummariesSubscriptionAccess: ObservableObject {
                 case .verified(let transaction):
                     await transaction.finish()
                     self.isSubscribed = true
-                    self.message = "تم تفعيل اشتراك ملخصات الذكر بنجاح! تقبل الله طاعتكم."
+                    publishPremiumFeatureAccess()
+                    self.message = "تم تفعيل اشتراك الميزات المتقدمة بنجاح! تقبل الله طاعتكم."
                     return true
                 case .unverified(_, let error):
                     self.message = "تعذر التحقق من العملية: \(error.localizedDescription)"
@@ -170,6 +175,16 @@ public final class DhikrSummariesSubscriptionAccess: ObservableObject {
         } catch {
             message = "تعذر الاتصال بـ App Store لاستعادة الاشتراك."
         }
+    }
+
+    /// يحفظ ويرسل حالة الاشتراك فوراً إلى الساعة، بعد الشراء أو الاستعادة أو انتهاء التجربة.
+    public func publishPremiumFeatureAccess() {
+        UserDefaults.standard.set(hasAccess, forKey: Self.premiumFeaturesAccessKey)
+        WatchSyncService.shared.sendSyncPayload(
+            count: WatchSyncService.shared.currentCount,
+            zekr: WatchSyncService.shared.currentZekr,
+            target: WatchSyncService.shared.target
+        )
     }
 
     private func listenForTransactionUpdates() {

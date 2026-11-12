@@ -309,8 +309,8 @@ public struct TargetSoundItem: Identifiable, Hashable {
 
 public struct PhoneCompanionView: View {
     @ObservedObject private var watchAccess = WatchPurchaseAccess.shared
+    @ObservedObject private var premiumAccess = DhikrSummariesSubscriptionAccess.shared
     @AppStorage(TapFeedbackPreference.soundEnabledKey) private var isTapSoundEnabled = true
-    @AppStorage("fadhkuruni_app_language_preference") private var appLanguagePreference = LanguagePreference.system.rawValue
     @ObservedObject private var lang = AppLanguage.shared
     @ObservedObject private var sync = WatchSyncService.shared
     @State private var selectedTab = 0
@@ -351,6 +351,7 @@ public struct PhoneCompanionView: View {
     // تفاعل حركة وانضغاط زر الحجب تحت الإصبع أثناء الضغط المطول
     @State private var isPressingCoverOnPhone: Bool = false
     @State private var isPressingToolbarCover: Bool = false
+    @State private var showPremiumFeaturesSheet = false
 
     public init() {}
     
@@ -468,12 +469,20 @@ public struct PhoneCompanionView: View {
         .photosPicker(isPresented: $isPickingWatchPhoto, selection: $selectedWatchPhotoItem, matching: .images)
         .onChange(of: selectedWatchPhotoItem) { _, item in
             guard let item else { return }
+            guard premiumAccess.hasAccess else {
+                showPremiumFeaturesSheet = true
+                selectedWatchPhotoItem = nil
+                return
+            }
             Task {
                 guard let sourceData = try? await item.loadTransferable(type: Data.self),
                       let compactData = compactWatchPhoto(from: sourceData) else { return }
                 sync.setWatchClockPhoto(compactData)
                 sync.setWatchClockCover(true)
             }
+        }
+        .sheet(isPresented: $showPremiumFeaturesSheet) {
+            NavigationStack { DhikrSummariesSubscriptionView() }
         }
     }
 
@@ -609,10 +618,12 @@ public struct PhoneCompanionView: View {
                             }
 
                             Button {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
-                                    sync.setWatchClockCover(!sync.showsWatchClockCover)
+                                requestPremiumFeatureAccess {
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
+                                        sync.setWatchClockCover(!sync.showsWatchClockCover)
+                                    }
+                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                                 }
-                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                             } label: {
                                 watchClockCoverButton
                             }
@@ -620,7 +631,9 @@ public struct PhoneCompanionView: View {
                             .opacity((showQiblaInCard || showPrayerTimesInCard) ? 0.35 : 1)
                             .simultaneousGesture(
                                 LongPressGesture(minimumDuration: 0.45)
-                                    .onEnded { _ in isPickingWatchPhoto = true }
+                                    .onEnded { _ in
+                                        requestPremiumFeatureAccess { isPickingWatchPhoto = true }
+                                    }
                             )
                             .simultaneousGesture(
                                 DragGesture(minimumDistance: 0)
@@ -967,11 +980,13 @@ public struct PhoneCompanionView: View {
             .animation(.spring(response: 0.28, dampingFraction: 0.65), value: isPressingCoverOnPhone)
             .contentShape(Circle())
             .onLongPressGesture(minimumDuration: 0.45) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) {
-                    isPressingCoverOnPhone = false
-                    sync.setWatchClockCover(!sync.showsWatchClockCover)
+                requestPremiumFeatureAccess {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.55)) {
+                        isPressingCoverOnPhone = false
+                        sync.setWatchClockCover(!sync.showsWatchClockCover)
+                    }
+                    UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
                 }
-                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
             } onPressingChanged: { isPressing in
                 withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
                     isPressingCoverOnPhone = isPressing
@@ -1348,8 +1363,10 @@ public struct PhoneCompanionView: View {
             }
 
             Button {
-                isPhoneCounterCoverActive.toggle()
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                requestPremiumFeatureAccess {
+                    isPhoneCounterCoverActive.toggle()
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                }
             } label: {
                 counterControlLabel(
                     title: isPhoneCounterCoverActive ? (L10n.isEnglish ? "Show Counter" : "إظهار العداد") : (L10n.isEnglish ? "Cover Counter" : "حجب العداد"),
@@ -1820,20 +1837,6 @@ public struct PhoneCompanionView: View {
                     }
                     .listRowBackground(Color.clear)
                 }
-                Section(L10n.tr("لغة التطبيق")) {
-                    Picker(L10n.tr("لغة التطبيق"), selection: $appLanguagePreference) {
-                        Text(L10n.tr("تلقائي (حسب لغة الجهاز)")).tag(LanguagePreference.system.rawValue)
-                        Text("العربية").tag(LanguagePreference.arabic.rawValue)
-                        Text("English").tag(LanguagePreference.english.rawValue)
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: appLanguagePreference) { _, preference in
-                        WatchSyncService.shared.syncLanguagePreference(preference)
-                    }
-                    Text(L10n.isEnglish ? "App language and layout direction automatically update on iPhone and sync to Apple Watch." : "يتغيّر اتجاه الواجهة واللغة على الآيفون، وتنتقل اللغة نفسها إلى الساعة المتصلة.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
                 Section {
                     Label(L10n.tr("عدد الذكر على أيقونة التطبيق"), systemImage: "app.badge")
                     Text(L10n.tr("تعرض الشارة آخر عدد محفوظ للذكر الحالي، وتختفي عند الصفر. اسمح بالإشعارات والشارات من إعدادات الآيفون. يتحدث عدد الساعة عند وصول المزامنة إلى الآيفون."))
@@ -1904,10 +1907,10 @@ public struct PhoneCompanionView: View {
                                 .background(.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
                             Text(L10n.isEnglish ? "Watch Management" : "إدارة الساعة").font(.title3.weight(.semibold))
                             Spacer()
-                            Label(L10n.isEnglish ? "100% Free" : "مجانية بالكامل", systemImage: "checkmark.seal.fill")
+                            Label(L10n.isEnglish ? "Core features free" : "الميزات الأساسية مجانية", systemImage: "checkmark.seal.fill")
                                 .font(.caption).foregroundStyle(.green)
                         }
-                        Text(L10n.isEnglish ? "Apple Watch version is 100% free with full tasbih, sync, crown options, and privacy cover." : "نسخة Apple Watch مجانية بالكامل للجميع، مع كامل ميزات التسبيح والمزامنة والتاج وتغطية الواجهة.")
+                        Text(L10n.isEnglish ? "Tasbih, sync, crown options, and Qibla are free. Dhikr summaries, privacy cover, and Safety Mode require the advanced subscription after its free month." : "التسبيح والمزامنة وخيارات التاج والقبلة مجانية. أما ملخصات الذكر وحجب العداد ووضع الأمان فتتطلب اشتراك الميزات المتقدمة بعد الشهر المجاني.")
                             .font(.caption).foregroundStyle(.secondary)
                     }.padding(.vertical, 8)
                     watchSettingsLink(L10n.tr("الأذكار والأهداف"), subtitle: L10n.isEnglish ? "Dhikr, targets & reset" : "الذكر المعروض، الهدف وتصفير العدّاد", icon: "list.bullet") {
@@ -1942,7 +1945,7 @@ public struct PhoneCompanionView: View {
                 } header: {
                     Text(L10n.isEnglish ? "Apple Watch Experience" : "تجربة الساعة")
                 } footer: {
-                    Text(L10n.isEnglish ? "All core app features and Apple Watch app are completely free for everyone." : "جميع ميزات التطبيق والتسبيح وساعة Apple Watch مجانية بالكامل للجميع.")
+                    Text(L10n.isEnglish ? "Core tasbih and Apple Watch features are free. Advanced subscription applies after its free month." : "ميزات التسبيح والساعة الأساسية مجانية؛ وتُفتح الميزات المتقدمة باشتراك بعد الشهر المجاني.")
                 }
                 Section(L10n.isEnglish ? "Support & Legal" : "الحساب والمساعدة") {
                     Button {
@@ -1952,7 +1955,7 @@ public struct PhoneCompanionView: View {
                     }
                     .buttonStyle(.plain)
                     NavigationLink { SubscriptionView() } label: {
-                        settingsLabel(L10n.isEnglish ? "Subscription & Pricing" : "الاشتراك والأسعار", subtitle: L10n.isEnglish ? "App is free, Dhikr summaries 1 month free then $1" : "البرنامج مجاني، ملخصات الذكر شهر مجاناً ثم 1$", icon: "sparkles")
+                        settingsLabel(L10n.isEnglish ? "Subscription & Pricing" : "الاشتراك والأسعار", subtitle: L10n.isEnglish ? "Advanced features free for one month, then subscription" : "الميزات المتقدمة شهر مجاناً ثم اشتراك", icon: "sparkles")
                     }
                     NavigationLink {
                         Form {
@@ -1989,11 +1992,26 @@ public struct PhoneCompanionView: View {
     /// يظهر طلب تقييم Apple الرسمي عند نشر التطبيق في App Store.
     /// قد لا يظهر في كل ضغطة؛ Apple تتحكم بعدد مرات عرضه للمستخدم.
     private func requestAppReview() {
+        // TestFlight does not show the App Store rating sheet. Open TestFlight
+        // instead, where beta testers can send their feedback to the developer.
+        if Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt" {
+            UIApplication.shared.open(URL(string: "itms-beta://")!)
+            return
+        }
         guard let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive })
         else { return }
         SKStoreReviewController.requestReview(in: scene)
+    }
+
+    private func requestPremiumFeatureAccess(_ action: () -> Void) {
+        guard premiumAccess.hasAccess else {
+            showPremiumFeaturesSheet = true
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            return
+        }
+        action()
     }
 
     private func watchSettingsLink<Destination: View>(_ title: String, subtitle: String? = nil,

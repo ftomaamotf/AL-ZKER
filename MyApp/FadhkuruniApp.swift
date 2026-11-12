@@ -5,6 +5,8 @@ struct FadhkuruniApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // ملخص الذكر اليومي خدمة تلقائية للجميع؛ نعيد تفعيلها أيضاً لمن أوقفها في إصدار سابق.
+        UserDefaults.standard.set(true, forKey: "fadhkuruni_daily_summary_enabled")
         PrayerAlertPreference.configureLongToneForAllPrayersIfNeeded()
         // ضمان تفعيل مستلم الإشعارات فور إقلاع التطبيق لعرض البانر وتشغيل الصوت حتى والتطبيق مفتوح
         _ = NotificationManager.shared

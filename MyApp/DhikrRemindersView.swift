@@ -12,7 +12,6 @@ struct DhikrCustomReminder: Identifiable, Codable, Hashable {
 struct DhikrRemindersView: View {
     @ObservedObject private var sync = WatchSyncService.shared
     @ObservedObject private var summariesAccess = DhikrSummariesSubscriptionAccess.shared
-    @AppStorage("fadhkuruni_daily_summary_enabled") private var dailySummaryEnabled = true
     @State private var customReminders = DhikrCustomReminder.loadAll()
     @State private var editor: DhikrCustomReminder?
     @State private var showStartFromTodayConfirmation = false
@@ -43,7 +42,7 @@ struct DhikrRemindersView: View {
                     .padding(.vertical, 3)
                 }
 
-                // إشعار ملخص الذكر اليومي عند صلاة العشاء
+                // ملخص الذكر اليومي إلزامي ويصل عند صلاة العشاء.
                 HStack(spacing: 12) {
                     Image(systemName: "moon.stars.fill")
                         .foregroundStyle(.indigo)
@@ -57,12 +56,12 @@ struct DhikrRemindersView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Toggle("", isOn: $dailySummaryEnabled)
-                        .labelsHidden()
-                        .tint(.green)
-                        .onChange(of: dailySummaryEnabled) { _, _ in
-                            DhikrSummaryNotificationScheduler.shared.refreshDailySummaryReminder()
-                        }
+                    Text(AppLanguage.shared.isEnglish ? "Automatic" : "تلقائي")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.green.opacity(0.12), in: Capsule())
                 }
                 .padding(.vertical, 3)
 

@@ -29,7 +29,9 @@ public enum LanguagePreference: String, CaseIterable, Identifiable {
 public final class AppLanguage: ObservableObject {
     public static let shared = AppLanguage()
 
-    @AppStorage("fadhkuruni_app_language_preference") public var preferenceRaw: String = LanguagePreference.system.rawValue {
+    // فذكروني يُعرض بالعربية فقط. أبقينا المفتاح للتوافق مع الإصدارات السابقة
+    // والمزامنة، لكن لا نسمح لقيمة محفوظة قديمة بتغيير لغة الواجهة.
+    @AppStorage("fadhkuruni_app_language_preference") public var preferenceRaw: String = LanguagePreference.arabic.rawValue {
         didSet {
             objectWillChange.send()
         }
@@ -40,20 +42,7 @@ public final class AppLanguage: ObservableObject {
         set { preferenceRaw = newValue.rawValue }
     }
 
-    public var isEnglish: Bool {
-        switch preference {
-        case .english:
-            return true
-        case .arabic:
-            return false
-        case .system:
-            if let preferred = Locale.preferredLanguages.first {
-                return !preferred.hasPrefix("ar")
-            }
-            let code = Locale.current.language.languageCode?.identifier ?? "ar"
-            return !code.hasPrefix("ar")
-        }
-    }
+    public var isEnglish: Bool { false }
 
     public var isRTL: Bool {
         !isEnglish
@@ -63,9 +52,7 @@ public final class AppLanguage: ObservableObject {
         isRTL ? .rightToLeft : .leftToRight
     }
 
-    public var locale: Locale {
-        isEnglish ? Locale(identifier: "en_US") : Locale(identifier: "ar_SA")
-    }
+    public var locale: Locale { Locale(identifier: "ar_SA") }
 
     // MARK: - Translation Dictionary
     private static let enMap: [String: String] = [

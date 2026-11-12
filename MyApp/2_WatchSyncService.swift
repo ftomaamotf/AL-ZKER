@@ -327,6 +327,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         payload["watchClockCover"] = showsWatchClockCover
         payload["watchClockCoverTime"] = clockCoverTime
         payload["watchClockCoverOrigin"] = clockCoverOrigin
+        payload["premiumFeaturesUnlocked"] = UserDefaults.standard.object(forKey: DhikrSummariesSubscriptionAccess.premiumFeaturesAccessKey) as? Bool ?? true
         // Photos travel as files, never in counter messages or their replies.
         // A saved photo plus the ledger can exceed WatchConnectivity's payload budget.
         payload["drivingLocked"] = isDrivingLocked

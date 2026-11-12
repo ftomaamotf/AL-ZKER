@@ -577,11 +577,6 @@ final class DhikrSummaryNotificationScheduler {
     private init() {}
 
     func refresh() {
-        let summariesEnabled = UserDefaults.standard.object(forKey: "fadhkuruni_daily_summary_enabled") as? Bool ?? true
-        guard summariesEnabled || !DhikrCustomReminder.loadAll().isEmpty else {
-            cancel()
-            return
-        }
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         refreshPrayerReminders()
         refreshCustomReminder()
@@ -737,9 +732,6 @@ final class DhikrSummaryNotificationScheduler {
         let center = UNUserNotificationCenter.current()
         let identifier = identifiers[0]
         center.removePendingNotificationRequests(withIdentifiers: identifiers + removedPeriodIdentifiers)
-
-        let isEnabled = UserDefaults.standard.object(forKey: "fadhkuruni_daily_summary_enabled") as? Bool ?? true
-        guard isEnabled else { return }
 
         let (ishaHour, ishaMinute) = currentIshaTime()
         let stats = WatchSyncService.shared.statistics

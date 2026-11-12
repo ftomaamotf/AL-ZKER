@@ -24,11 +24,11 @@ public struct DhikrSummariesSubscriptionView: View {
                     }
                     .padding(.top, 10)
 
-                    Text("اشتراك ملخصات الذكر")
+                    Text("اشتراك فذكروني")
                         .font(.title2.weight(.bold))
                         .multilineTextAlignment(.center)
 
-                    Text("إحصاءات الأسبوع ومقارنة وردك اليومي لمعرفة تقدمك في التسبيح")
+                    Text("ملخصات الذكر، حجب العداد، ووضع الأمان في مكان واحد")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -47,7 +47,7 @@ public struct DhikrSummariesSubscriptionView: View {
                                 .font(.headline.weight(.bold))
                                 .foregroundStyle(.primary)
 
-                            Text("جميع ملخصات الذكر مجانية لمدة 30 يوماً من أول يوم استخدام.")
+                            Text("ملخصات الذكر وحجب العداد ووضع الأمان مجانية لمدة 30 يوماً من أول يوم استخدام.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -62,7 +62,7 @@ public struct DhikrSummariesSubscriptionView: View {
                             .foregroundStyle(.mint)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("1$ شهرياً فقط بعد انتهاء الشهر")
+                            Text("\(access.displayPrice) شهرياً بعد انتهاء الشهر")
                                 .font(.headline.weight(.bold))
                                 .foregroundStyle(.primary)
 
@@ -81,11 +81,11 @@ public struct DhikrSummariesSubscriptionView: View {
                             .foregroundStyle(.orange)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("باقي التطبيق مجاني بالكامل 100%")
+                            Text("أساسيات التطبيق مجانية دائماً")
                                 .font(.headline.weight(.bold))
                                 .foregroundStyle(.primary)
 
-                            Text("العدّاد، الأذكار، الأهداف، القبلة، المواقيت، وساعة Apple Watch مجانية دائماً.")
+                            Text("العدّاد، الأذكار، الأهداف، القبلة، المواقيت، وساعة Apple Watch متاحة للجميع.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -118,10 +118,10 @@ public struct DhikrSummariesSubscriptionView: View {
                     .padding(.horizontal, 16)
                 } else {
                     VStack(spacing: 4) {
-                        Text("انتهى الشهر المجاني لملخصات الذكر")
+                        Text("انتهى الشهر المجاني للميزات المتقدمة")
                             .font(.subheadline.weight(.bold))
                             .foregroundStyle(.red)
-                        Text("للاستمرار في استعراض إحصاءات الأسبوع ومقارنات الأيام، اشترك الآن بسعر 1$ شهرياً فقط.")
+                        Text("للاستمرار في ملخصات الذكر وحجب العداد ووضع الأمان، اشترك الآن بالسعر الظاهر في متجر Apple.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)

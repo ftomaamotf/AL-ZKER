@@ -109,9 +109,11 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
 
     /// Mirrored from the iPhone to replace the displayed counter number with time.
     @Published public private(set) var showsWatchClockCover = UserDefaults.standard.object(forKey: "watchClockCover") as? Bool ?? false
+    @Published public private(set) var premiumFeaturesUnlocked = UserDefaults.standard.object(forKey: "fadhkuruni_premium_features_unlocked") as? Bool ?? false
     private var clockCoverTime: Double { UserDefaults.standard.double(forKey: "watchClockCoverTime") }
     private var clockCoverOrigin: String { UserDefaults.standard.string(forKey: "watchClockCoverOrigin") ?? "" }
     public func setWatchClockCover(_ value: Bool) {
+        guard !value || premiumFeaturesUnlocked else { return }
         showsWatchClockCover = value
         UserDefaults.standard.set(value, forKey: "watchClockCover")
         UserDefaults.standard.set(max(Date().timeIntervalSince1970, clockCoverTime.nextUp), forKey: "watchClockCoverTime")
@@ -122,12 +124,23 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         guard let value = payload["watchClockCover"] as? Bool,
               let time = payload["watchClockCoverTime"] as? Double, time.isFinite, time > 0,
               let origin = payload["watchClockCoverOrigin"] as? String else { return }
+        guard !value || premiumFeaturesUnlocked else { return }
         // This preference is controlled by the iPhone. Do not reject a current
         // phone command because the Watch retained an older future timestamp.
         showsWatchClockCover = value
         UserDefaults.standard.set(value, forKey: "watchClockCover")
         UserDefaults.standard.set(time, forKey: "watchClockCoverTime")
         UserDefaults.standard.set(origin, forKey: "watchClockCoverOrigin")
+    }
+
+    private func applyPremiumFeaturesAccess(_ payload: [String: Any]) {
+        guard let value = payload["premiumFeaturesUnlocked"] as? Bool else { return }
+        premiumFeaturesUnlocked = value
+        UserDefaults.standard.set(value, forKey: "fadhkuruni_premium_features_unlocked")
+        if !value, showsWatchClockCover {
+            showsWatchClockCover = false
+            UserDefaults.standard.set(false, forKey: "watchClockCover")
+        }
     }
 
     @Published public private(set) var watchClockPhotoData = UserDefaults.standard.data(forKey: "watchClockPhotoData")
@@ -268,6 +281,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         payload["watchClockCover"] = showsWatchClockCover
         payload["watchClockCoverTime"] = clockCoverTime
         payload["watchClockCoverOrigin"] = clockCoverOrigin
+        payload["premiumFeaturesUnlocked"] = premiumFeaturesUnlocked
         // Photos travel as files, never in counter messages or their replies.
         // A saved photo plus the ledger can exceed WatchConnectivity's payload budget.
         payload["drivingLocked"] = isDrivingLocked
@@ -862,6 +876,7 @@ public final class WatchSyncService: NSObject, ObservableObject, WCSessionDelega
         }
         applyMinusPreference(payload)
         applyResetPreference(payload)
+        applyPremiumFeaturesAccess(payload)
         applyClockCoverPreference(payload)
         applyWatchClockPhoto(payload)
         applyDrivingLock(payload)

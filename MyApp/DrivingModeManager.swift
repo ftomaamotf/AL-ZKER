@@ -133,6 +133,11 @@ final class DrivingModeManager: NSObject, ObservableObject, CLLocationManagerDel
     }
 
     private func setDriving(_ value: Bool) {
+        // وضع الأمان جزء من اشتراك الميزات المتقدمة بعد انتهاء الشهر المجاني.
+        // لا نفعّل القفل تلقائياً لمن لا يملك وصولاً نشطاً.
+        if value && !DhikrSummariesSubscriptionAccess.shared.hasAccess {
+            return
+        }
         guard isDriving != value else { return }
         isDriving = value
         WatchSyncService.shared.setDrivingLocked(value)

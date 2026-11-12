@@ -8,16 +8,16 @@ struct SubscriptionView: View {
             Section("مجاني بالكامل") {
                 Label("جميع ميزات التسبيح والساعة مجانية", systemImage: "checkmark.seal.fill")
                     .foregroundStyle(.green)
-                Text("العدّاد، الأذكار، الأهداف، اتجاه القبلة، مواقيت الصلاة ونغماتها، وقفل العدّاد، وجميع ميزات Apple Watch متاحة مجاناً 100% لجميع المستخدمين دون أي رسوم.")
+                Text("العدّاد، الأذكار، الأهداف، اتجاه القبلة، مواقيت الصلاة ونغماتها، وجميع ميزات Apple Watch الأساسية متاحة مجاناً لجميع المستخدمين.")
             }
 
-            Section("اشتراك ملخصات الذكر") {
+            Section("اشتراك الميزات المتقدمة") {
                 HStack(spacing: 12) {
                     Image(systemName: "chart.bar.xaxis")
                         .foregroundStyle(.mint)
                         .font(.title2)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("ملخصات الذكر وإحصاءات الأسبوع")
+                        Text("الملخصات وحجب العداد ووضع الأمان")
                             .font(.body.weight(.medium))
                         Text(access.statusDescription)
                             .font(.caption)
@@ -26,11 +26,11 @@ struct SubscriptionView: View {
                 }
                 .padding(.vertical, 3)
 
-                Text("ميزة ملخصات الذكر متاحة مجاناً لمدة شهر كامل لجميع المستخدمين، وتتطلب بعد ذلك اشتراكاً رمزياً بسيطاً بسعر 1$ شهرياً فقط لدعم استمرار وتطوير التطبيق.")
+                Text("ملخصات الذكر وحجب عداد الذكر ووضع الأمان متاحة مجاناً لمدة شهر كامل، ثم تتطلب اشتراكاً شهرياً بالسعر الظاهر في متجر Apple.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
-                NavigationLink("تفاصيل اشتراك ملخصات الذكر") {
+                NavigationLink("تفاصيل الاشتراك") {
                     DhikrSummariesSubscriptionView()
                 }
             }

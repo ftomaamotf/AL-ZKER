@@ -98,7 +98,7 @@ struct WatchGuideView: View {
             Label(L10n.isEnglish ? "100% Free for Everyone" : "مجانية بالكامل للجميع", systemImage: "checkmark.seal.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.green)
-            Text(L10n.isEnglish ? "All Apple Watch features are included for free with full tasbih, sync, crown options, and privacy cover." : "جميع ميزات الساعة مجانية بالكامل للجميع مع كامل ميزات التسبيح والمزامنة والتاج وتغطية الواجهة.")
+            Text(L10n.isEnglish ? "Tasbih, sync, crown options, and Qibla are free. Dhikr summaries, privacy cover, and Safety Mode are included in the advanced subscription after its free month." : "التسبيح والمزامنة وخيارات التاج والقبلة مجانية. أما ملخصات الذكر وحجب العداد ووضع الأمان فهي ضمن اشتراك الميزات المتقدمة بعد الشهر المجاني.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Text(L10n.isEnglish ? "Count by tap or gesture, select Dhikr, set targets, and view Qibla direction." : "سبّح باللمس أو الإيماءة، واختر ذكرك وحدد هدفك وافتح القبلة من قائمة التاج.")
